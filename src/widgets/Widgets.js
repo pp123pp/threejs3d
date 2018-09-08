@@ -4,14 +4,18 @@ import DeveloperError from "../core/DeveloperError";
 import {getElement} from "./getElement";
 import {defaultValue} from "../core/defaultValue";
 import GlobeScene from "../core/GlobeScene";
-import '../renderer/ThreeExtended/OrbitControls'
+import '../renderer/ThreeExtended/Extension'
 
 
 //场景组件
 export default class Widgets {
+    
     constructor(container, options){
+        
         if(!defined(container)){
+            
             throw new DeveloperError("container 参数不能为空")
+            
         }
 
         container = getElement(container);
@@ -50,14 +54,19 @@ export default class Widgets {
         this._scene = scene;
 
         this._control = new THREE.OrbitControls( camera, scene.domElement);
-
+    
+        resize();
+        
         function resize() {
-
-            camera.aspect = container.clientWidth/container.clientHeight;
+            
+            let [containerWidth,containerHeight ] = [ container.clientWidth, container.clientHeight];
+            
+            camera.aspect = containerWidth/containerHeight;
 
             camera.updateProjectionMatrix();
 
-            renderer.setSize( container.clientWidth, container.clientHeight );
+            renderer.setSize( containerWidth, containerHeight );
+            
         }
 
         if(defined(window.addEventListener)){
@@ -71,6 +80,22 @@ export default class Widgets {
             requestAnimationFrame( animate );
 
             renderer.render( scene, camera );
+    
+            let [containerWidth,containerHeight ] = [ container.clientWidth, container.clientHeight];
+    
+            camera.containerWidth = containerWidth;
+    
+            camera.containerHeight = containerHeight;
+    
+            //containerWidth = null;
+    
+            //containerHeight = null;
+            
+            scene.mainLoopCollection.forEach(value => {
+                
+                value.mainLoopUpdate({scene, camera, renderer})
+                
+            })
         };
 
         animate();
