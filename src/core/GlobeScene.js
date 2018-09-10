@@ -1,6 +1,7 @@
 import * as THREE from 'three'
 import {defaultValue} from "./defaultValue";
-import {defined} from "./defined";
+import '../renderer/ThreeExtended/Extension'
+import Camera from "../renderer/Camera";
 
 export default class GlobeScene extends THREE.Scene{
     constructor(container, option = {}){
@@ -15,10 +16,17 @@ export default class GlobeScene extends THREE.Scene{
 
         this._renderer = new THREE.WebGLRenderer(renderState);
 
-        this._camera = new THREE.PerspectiveCamera(60, container.clientWidth/container.clientHeight, 0.1, 500000000);
+        this._camera = new Camera({
+            fov: 60,
+            aspect: container.clientWidth/container.clientHeight,
+            near: 0.1,
+            far: 500000000
+        });
 
         this._renderer.setSize( container.clientWidth, container.clientHeight);
-
+    
+        this._control = new THREE.OrbitControls( this._camera, this.domElement);
+    
         container.appendChild(this._renderer.domElement);
 
     }
@@ -41,5 +49,9 @@ export default class GlobeScene extends THREE.Scene{
 
     get domElement(){
         return this.renderer.domElement
+    }
+    
+    get control(){
+        return this._control
     }
 }

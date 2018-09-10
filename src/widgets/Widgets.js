@@ -53,7 +53,6 @@ export default class Widgets {
 
         this._scene = scene;
 
-        this._control = new THREE.OrbitControls( camera, scene.domElement);
     
         resize();
         
@@ -78,24 +77,22 @@ export default class Widgets {
         let animate = function () {
 
             requestAnimationFrame( animate );
-
-            renderer.render( scene, camera );
     
             let [containerWidth,containerHeight ] = [ container.clientWidth, container.clientHeight];
     
             camera.containerWidth = containerWidth;
     
             camera.containerHeight = containerHeight;
-    
-            //containerWidth = null;
-    
-            //containerHeight = null;
+            
+            camera.preUpdate();
             
             scene.mainLoopCollection.forEach(value => {
                 
                 value.mainLoopUpdate({scene, camera, renderer})
                 
-            })
+            });
+    
+            renderer.render( scene, camera );
         };
 
         animate();
@@ -112,5 +109,9 @@ export default class Widgets {
 
     get renderer(){
         return this._renderer
+    }
+    
+    get control(){
+        return this.scene.control
     }
 }
