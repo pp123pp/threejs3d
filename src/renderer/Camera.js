@@ -1,6 +1,7 @@
 import * as THREE from 'three'
 import {defaultValue} from "../core/defaultValue";
 import {defined} from "../core/defined";
+import {pre3dTilesUpdate} from "../core/pre3dTilesUpdate";
 
 const tmp = {
     frustum: new THREE.Frustum(),
@@ -33,16 +34,32 @@ export default class Camera extends THREE.PerspectiveCamera{
         
         //屏幕空间误差
         this.preSSE = null;
+        
+        this.lastFramePs = new THREE.Vector3().copy(this.position);
+        
+    }
+    
+    preUpdate(context){
+        
+        //监听相机坐标属性改变
+        if(!this.lastFramePs.equals(this.position)){
+            
+            this.dispatchEvent({ type: 'change' });
+            
+            this.lastFramePs.copy(this.position)
+        }
+        
+        this.updateMatrixWorld();
+        
+        this._viewMatrix.multiplyMatrices(this.projectionMatrix, this.matrixWorldInverse)
     
         
         
     }
     
-    preUpdate(){
-        
-        this.updateMatrixWorld();
-        
-        this._viewMatrix.multiplyMatrices(this.projectionMatrix, this.matrixWorldInverse)
+    resize(context){
+        pre3dTilesUpdate(context);
+        //console.log(this.preSSE)
     }
     
     /**
@@ -66,6 +83,14 @@ export default class Camera extends THREE.PerspectiveCamera{
     }
     
     isSphereVisible(sphere, matrixWorld){
-    
+        if (matrixWorld) {
+            tmp.matrix.multiplyMatrices(this._viewMatrix, matrixWorld);
+            tmp.frustum.setFromMatrix(tmp.matrix);
+        } else {
+            tmp.frustum.setFromMatrix(this._viewMatrix);
+        }
+        return tmp.frustum.intersectsSphere(sphere);
     }
+    
+    
 }

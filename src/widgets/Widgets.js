@@ -12,11 +12,7 @@ export default class Widgets {
     
     constructor(container, options){
         
-        if(!defined(container)){
-            
-            throw new DeveloperError("container 参数不能为空")
-            
-        }
+        if(!defined(container)){throw new DeveloperError("container 参数不能为空")}
 
         container = getElement(container);
 
@@ -56,6 +52,8 @@ export default class Widgets {
     
         resize();
         
+        debugger
+        
         function resize() {
             
             let [containerWidth,containerHeight ] = [ container.clientWidth, container.clientHeight];
@@ -65,6 +63,12 @@ export default class Widgets {
             camera.updateProjectionMatrix();
 
             renderer.setSize( containerWidth, containerHeight );
+    
+            camera.containerWidth = containerWidth;
+    
+            camera.containerHeight = containerHeight;
+    
+            camera.resize({scene, camera, renderer});
             
         }
 
@@ -81,10 +85,10 @@ export default class Widgets {
             let [containerWidth,containerHeight ] = [ container.clientWidth, container.clientHeight];
     
             camera.containerWidth = containerWidth;
-    
+            
             camera.containerHeight = containerHeight;
             
-            camera.preUpdate();
+            camera.preUpdate({scene, camera, renderer});
             
             scene.mainLoopCollection.forEach(value => {
                 

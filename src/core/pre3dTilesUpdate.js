@@ -1,4 +1,4 @@
-export function pre3dTilesUpdate(context, layer) {
+export function pre3dTilesUpdate(context) {
     
     const hypotenuse = Math.sqrt(context.camera.containerWidth * context.camera.containerWidth + context.camera.containerHeight * context.camera.containerHeight);
     //相机的观察角度
@@ -10,6 +10,4 @@ export function pre3dTilesUpdate(context, layer) {
     // const HFOV = 2.0 * Math.atan(Math.tan(radAngle * 0.5) / context.camera.ratio);
     const HYFOV = 2.0 * Math.atan(Math.tan(radAngle * 0.5) * hypotenuse / context.camera.containerWidth);
     context.camera.preSSE = hypotenuse * (2.0 * Math.tan(HYFOV * 0.5));
-    
-    return [layer.root]
 }

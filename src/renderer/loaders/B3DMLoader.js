@@ -55,37 +55,21 @@ export default class B3DMLoader {
 
     load(options = {}){
 
-        const jsonRootUrl = options.jsonRootUrl;
+        const url = options.url;
 
         const scope = this;
 
         return new Promise((resolve, reject) => {
-            Fetcher.json(jsonRootUrl, {}).then(tileset=>{
-
-                let metadata = tileset.root;
-
-                const path = metadata.content ? metadata.content.url : undefined;
-
-                if(!defined(path)) {throw "path不存在"};
-
-                const url = path.startsWith('http') ? path : jsonRootUrl.substring(0,jsonRootUrl.lastIndexOf('/') + 1) + path;
-
-
-                Fetcher.arrayBuffer(url).then(json=>{
-
-                    const magic = textDecoder.decode(new Uint8Array(json, 0, 4));
-
-                    scope.parse(json).then(result=>{
-                        resolve(result)
-                    })
-
+            Fetcher.arrayBuffer(url).then(json=>{
+        
+                const magic = textDecoder.decode(new Uint8Array(json, 0, 4));
+        
+                scope.parse(json).then(result=>{
+                    resolve(result)
                 })
-
+        
             })
         })
-
-
-
     }
 
     parse(buffer, gltfUpAxis){
