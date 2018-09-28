@@ -3,15 +3,15 @@ import {defined} from "../core/defined";
 import DeveloperError from "../core/DeveloperError";
 import {getElement} from "./getElement";
 import {defaultValue} from "../core/defaultValue";
-import GlobeScene from "../core/GlobeScene";
+import GlobeScene from "../scene/GlobeScene";
 import '../renderer/ThreeExtended/Extension'
 
 
 //场景组件
 export default class Widgets {
-    
+
     constructor(container, options){
-        
+
         if(!defined(container)){throw new DeveloperError("container 参数不能为空")}
 
         container = getElement(container);
@@ -49,27 +49,25 @@ export default class Widgets {
 
         this._scene = scene;
 
-    
+
         resize();
-        
-        debugger
-        
+
         function resize() {
-            
+
             let [containerWidth,containerHeight ] = [ container.clientWidth, container.clientHeight];
-            
+
             camera.aspect = containerWidth/containerHeight;
 
             camera.updateProjectionMatrix();
 
             renderer.setSize( containerWidth, containerHeight );
-    
+
             camera.containerWidth = containerWidth;
-    
+
             camera.containerHeight = containerHeight;
-    
+
             camera.resize({scene, camera, renderer});
-            
+
         }
 
         if(defined(window.addEventListener)){
@@ -81,22 +79,24 @@ export default class Widgets {
         let animate = function () {
 
             requestAnimationFrame( animate );
-    
+
             let [containerWidth,containerHeight ] = [ container.clientWidth, container.clientHeight];
-    
+
             camera.containerWidth = containerWidth;
-            
+
             camera.containerHeight = containerHeight;
-            
+
             camera.preUpdate({scene, camera, renderer});
-            
+
             scene.mainLoopCollection.forEach(value => {
-                
+
                 value.mainLoopUpdate({scene, camera, renderer})
-                
+
             });
-    
+
             renderer.render( scene, camera );
+
+            scene.dispatchEvent({type: "preUpdate"})
         };
 
         animate();
@@ -114,7 +114,7 @@ export default class Widgets {
     get renderer(){
         return this._renderer
     }
-    
+
     get control(){
         return this.scene.control
     }

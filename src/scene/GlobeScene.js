@@ -1,7 +1,9 @@
 import * as THREE from 'three'
-import {defaultValue} from "./defaultValue";
+import {defaultValue} from "../core/defaultValue";
 import '../renderer/ThreeExtended/Extension'
 import Camera from "../renderer/Camera";
+import {EarthControls} from "./EarthControls";
+
 
 export default class GlobeScene extends THREE.Scene{
     constructor(container, option = {}){
@@ -24,9 +26,9 @@ export default class GlobeScene extends THREE.Scene{
         });
 
         this._renderer.setSize( container.clientWidth, container.clientHeight);
-    
-        this._control = new THREE.OrbitControls( this._camera, this.domElement);
-    
+
+        this._control = new EarthControls(this);
+
         container.appendChild(this._renderer.domElement);
 
     }
@@ -50,7 +52,7 @@ export default class GlobeScene extends THREE.Scene{
     get domElement(){
         return this.renderer.domElement
     }
-    
+
     get control(){
         return this._control
     }

@@ -2,6 +2,7 @@ import * as THREE from 'three'
 import Viewer from "./widgets/viewer/Viewer";
 import THREE3dTileset from "./renderer/3dtiles/THREE3dTileset";
 import {GeometryLayer} from "./core/Scheduler/layer/GeometryLayer";
+import Tileset from "./renderer/3dtiles/Tileset";
 
 
 
@@ -37,6 +38,8 @@ let three3dTileset = THREE3dTileset.tilesetModelFromJson({
     url: jsonRootUrl
 });
 
+scene.control.addIntersectObject(three3dTileset)
+
 scene.add(three3dTileset);
 
 
@@ -45,12 +48,17 @@ scene.mainLoopCollection.add(three3dTileset);
 let tilesetGeometryLayer = new GeometryLayer('3d-tiles-discrete-lod', scene);
 
 viewer.scene.control.addEventListener('change', function () {
-
-});
-
-viewer.camera.addEventListener('change',  () =>{
     three3dTileset.changeEvent(camera)
 });
+
+/*viewer.camera.addEventListener('change',  () =>{
+    ///three3dTileset.changeEvent(camera)
+    console.log("aa")
+});*/
+
+let tileset = Tileset.fromJson({
+    url: jsonRootUrl
+})
 
 
 
