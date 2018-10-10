@@ -1,6 +1,7 @@
 import * as THREE from 'three'
 import {defined} from "../../core/defined";
 import B3DMLoader from "../loaders/B3DMLoader";
+import {defaultValue} from "../../core/defaultValue";
 
 const b3dmLoader = new B3DMLoader();
 
@@ -37,7 +38,7 @@ function getBox(volume, inverseTileTransform) {
         const n = center.y + box[7];
         const b = center.z - box[11];
         const t = center.z + box[11];
-        
+
         return { box: new THREE.Box3(new THREE.Vector3(w, s, b), new THREE.Vector3(e, n, t)) };
     } else if (volume.sphere) {
         const sphere = new THREE.Sphere(new THREE.Vector3(volume.sphere[0], volume.sphere[1], volume.sphere[2]), volume.sphere[3]);
@@ -48,90 +49,78 @@ function getBox(volume, inverseTileTransform) {
 /**
  * 创建一个单独的瓦片
  */
-export default class THREE3dTile extends THREE.Object3D{
-    
-    constructor(options = {}){
-        
+export default class Tile extends THREE.Object3D{
+
+    constructor(tileset, baseResource, header, parent){
+
         super();
-        
-        let url = options.url;
-        
-        if(!defined(url)) {throw 'url不存在'}
-        
-        this._url = url;
-        
-        let parent = options.parent;
-        
-        let node = options.node;
-        
-        this._node = node;
-        
-        this.viewerRequestVolume = node.viewerRequestVolume;
-        
-        this.transform = node.transform ? (new THREE.Matrix4()).fromArray(node.transform) : new THREE.Matrix4();
-    
+
+        this._tileset = tileset;
+        this._header = header;
+        let contentHeader = header.content;
+
+
+        this.viewerRequestVolume = header.viewerRequestVolume;
+
+        this.transform = header.transform ? (new THREE.Matrix4()).fromArray(header.transform) : new THREE.Matrix4();
+
         this.applyMatrix(this.transform);
-        
-        this.geometricError = node.geometricError;
-    
+
+        this.geometricError = header.geometricError;
+
         this.parentFromLocalTransform = this.transform;
-        
+
         this.worldFromLocalTransform = new THREE.Matrix4().multiplyMatrices(parent ? parent.worldFromLocalTransform : new THREE.Matrix4(), this.parentFromLocalTransform);
-    
+
         const m = new THREE.Matrix4();
         m.getInverse(this.worldFromLocalTransform);
-    
+
         //viewerRequestVolume:在进行渲染之前，viewerRequestVolume必须包含在视景体中
-        this.viewerRequestVolume = node.viewerRequestVolume ? getBox(node.viewerRequestVolume, m) : undefined;
-    
-    
-        this.boundingVolume = getBox(node.boundingVolume, m);
+        this.viewerRequestVolume = header.viewerRequestVolume ? getBox(header.viewerRequestVolume, m) : undefined;
+
+
+        this.boundingVolume = getBox(header.boundingVolume, m);
         if (this.boundingVolume.region) {
             this.add(this.boundingVolume.region);
         }
         //更新世界矩阵
         this.updateMatrixWorld();
-        
+
         //当前瓦片是否已加载
         this._ready = false;
-        
+
         //保存加载后的gltf模型数据
         this.gltf = null;
-        
-        //当前瓦片的id
-        this.tileId = options.tileId;
-        
-        this.parentNode = parent
-        
+
     }
-    
+
     load(){
         return new Promise((resolve, reject) => {
             b3dmLoader.load({url: this._url}).then(result=>{
-        
+
                 this.gltf = result.gltf;
-        
+
                 this._ready = true;
-    
+
                 result.gltf.scene.traverse(child=>{
-                    
+
                     if(!defined(child.isMesh)) return;
-        
+
                     child.frustumCulled = false;
-    
+
                     child.material = new THREE.MeshLambertMaterial(0xffffff);
-                    
+
                 });
-                
+
                 this.add(result.gltf.scene);
-        
+
                 resolve(result)
             })
         })
-    
-        
+
+
     }
-    
+
     get ready(){
         return this._ready
     }

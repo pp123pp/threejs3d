@@ -3,7 +3,7 @@ import {defined} from "../../core/defined";
 import './../ThreeExtended/Extension'
 import Fetcher from "../../core/Scheduler/Providers/Fetcher";
 import {defaultValue} from "../../core/defaultValue";
-import THREE3dTile from "./THREE3dTile";
+import Tile from "./Tile";
 
 
 function tilesetJsonIndex(tileset, baseUrl) {
@@ -62,14 +62,10 @@ export default class THREE3dTileset extends THREE.Object3D{
             //加载模型根节点
             let root = three3dTileset.tileIndex.index[0];
 
-            console.log(three3dTileset.tileIndex)
+            //console.log(three3dTileset.tileIndex);
 
             //此时根节点并没有父节点
-            let tile = new THREE3dTile({
-                url: root.baseUrl + root.content.url,
-                tileId: root.tileId,
-                node: root
-            });
+            let tile = new Tile(three3dTileset, root, root.baseUrl + root.content.url);
 
             tile.load().then(()=>{
                 tile.position.set(0, 0, 0);
