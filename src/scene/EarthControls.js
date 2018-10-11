@@ -35,7 +35,7 @@ class EarthControls {
 
         this._fadeFactor = 15;
 
-        this._minZoomDistance = 20;
+        this._minZoomDistance = 0;
 
         this._maxZoomDistance = Infinity;
 

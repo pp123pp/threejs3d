@@ -1,29 +1,22 @@
-import * as THREE from 'three'
-import Viewer from "./widgets/viewer/Viewer";
-import THREE3dTileset from "./renderer/3dtiles/THREE3dTileset";
-import {GeometryLayer} from "./core/Scheduler/layer/GeometryLayer";
-import Tileset from "./renderer/3dtiles/Tileset";
-
-
-
+import {E3D} from "./E3D";
 let jsonRootUrl = "https://raw.githubusercontent.com/AnalyticalGraphicsInc/3d-tiles-samples/master/tilesets/TilesetWithDiscreteLOD/tileset.json";
 
-let viewer = new Viewer("container");
+let viewer = new E3D.Viewer("container");
 
 const scene = viewer.scene;
 
 const camera = viewer.camera;
 
-let geometry = new THREE.BoxGeometry( 1, 1, 1 );
-let material = new THREE.MeshBasicMaterial( { color: 0x00ff00 } );
-let cube = new THREE.Mesh( geometry, material );
-viewer.scene.add( cube );
+let geometry = new E3D.THREE.BoxGeometry( 1, 1, 1 );
+let material = new E3D.THREE.MeshBasicMaterial( { color: 0x00ff00 } );
+let cube = new E3D.THREE.Mesh( geometry, material );
+scene.add( cube );
 
-viewer.camera.position.z = 25500;
+camera.position.z = 10;
 
-let ambientLight = new THREE.AmbientLight( 0x404040 );
-let directionalLight1 = new THREE.DirectionalLight( 0xC0C090 );
-let directionalLight2 = new THREE.DirectionalLight( 0xC0C090 );
+let ambientLight = new E3D.THREE.AmbientLight( 0x404040 );
+let directionalLight1 = new E3D.THREE.DirectionalLight( 0xC0C090 );
+let directionalLight2 = new E3D.THREE.DirectionalLight( 0xC0C090 );
 
 directionalLight1.position.set( -100, -50, 100 );
 directionalLight2.position.set( 100, 50, -100 );
@@ -33,30 +26,12 @@ scene.add( directionalLight2 );
 scene.add( ambientLight );
 
 
-
-let three3dTileset = THREE3dTileset.tilesetModelFromJson({
-    url: jsonRootUrl
-});
-
-scene.control.addIntersectObject(three3dTileset)
-
-scene.add(three3dTileset);
+scene.control.addIntersectObject(cube);
 
 
-scene.mainLoopCollection.add(three3dTileset);
 
-let tilesetGeometryLayer = new GeometryLayer('3d-tiles-discrete-lod', scene);
 
-viewer.scene.control.addEventListener('change', function () {
-    three3dTileset.changeEvent(camera)
-});
-
-/*viewer.camera.addEventListener('change',  () =>{
-    ///three3dTileset.changeEvent(camera)
-    console.log("aa")
-});*/
-
-let tileset = Tileset.fromJson({
+let tileset = E3D.Tileset.fromJson({
     url: jsonRootUrl
 })
 

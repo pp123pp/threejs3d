@@ -8,7 +8,7 @@
 
 import * as THREE from 'three';
 
-THREE.GLTFLoader = ( function () {
+let GLTFLoader = ( function () {
 
     function GLTFLoader( manager ) {
 
@@ -162,7 +162,7 @@ THREE.GLTFLoader = ( function () {
 
         update: function () {
 
-            console.warn( 'THREE.GLTFLoader.Shaders has been deprecated, and now updates automatically.' );
+            console.warn( 'GLTFLoader.Shaders has been deprecated, and now updates automatically.' );
 
         }
 
@@ -278,7 +278,7 @@ THREE.GLTFLoader = ( function () {
 
         update: function () {
 
-            console.warn( 'THREE.GLTFLoader.Animation has been deprecated. Use THREE.AnimationMixer instead.' );
+            console.warn( 'GLTFLoader.Animation has been deprecated. Use THREE.AnimationMixer instead.' );
 
         }
 
@@ -998,7 +998,7 @@ THREE.GLTFLoader = ( function () {
 
             } else {
 
-                console.warn( 'THREE.GLTFLoader: ' + buffer.type + ' buffer type is not supported' );
+                console.warn( 'GLTFLoader: ' + buffer.type + ' buffer type is not supported' );
 
             }
 
@@ -1122,7 +1122,7 @@ THREE.GLTFLoader = ( function () {
 
                             if ( texture.internalFormat !== undefined && _texture.format !== WEBGL_TEXTURE_FORMATS[ texture.internalFormat ] ) {
 
-                                console.warn( 'THREE.GLTFLoader: Three.js doesn\'t support texture internalFormat which is different from texture format. ' +
+                                console.warn( 'GLTFLoader: Three.js doesn\'t support texture internalFormat which is different from texture format. ' +
                                     'internalFormat will be forced to be the same value as format.' );
 
                             }
@@ -2217,3 +2217,7 @@ THREE.GLTFLoader = ( function () {
     return GLTFLoader;
 
 } )();
+
+Object.assign(THREE, GLTFLoader);
+
+export {GLTFLoader}

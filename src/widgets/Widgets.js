@@ -4,7 +4,7 @@ import DeveloperError from "../core/DeveloperError";
 import {getElement} from "./getElement";
 import {defaultValue} from "../core/defaultValue";
 import GlobeScene from "../scene/GlobeScene";
-import '../renderer/ThreeExtended/Extension'
+
 
 
 //场景组件

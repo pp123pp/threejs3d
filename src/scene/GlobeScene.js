@@ -1,6 +1,5 @@
 import * as THREE from 'three'
 import {defaultValue} from "../core/defaultValue";
-import '../renderer/ThreeExtended/Extension'
 import Camera from "../renderer/Camera";
 import {EarthControls} from "./EarthControls";
 
@@ -15,6 +14,11 @@ export default class GlobeScene extends THREE.Scene{
 
         //抗锯齿默认开启
         renderState.antialias = defaultValue( renderState.antialias, true);
+
+        /**
+         * 帧循环队列
+         */
+        this.mainLoopCollection = new Set();
 
         this._renderer = new THREE.WebGLRenderer(renderState);
 

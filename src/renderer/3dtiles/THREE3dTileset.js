@@ -1,6 +1,5 @@
 import * as THREE from 'three';
 import {defined} from "../../core/defined";
-import './../ThreeExtended/Extension'
 import Fetcher from "../../core/Scheduler/Providers/Fetcher";
 import {defaultValue} from "../../core/defaultValue";
 import Tile from "./Tile";

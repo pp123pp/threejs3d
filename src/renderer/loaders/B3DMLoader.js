@@ -1,8 +1,9 @@
 import * as THREE from 'three';
-import './GLTFLoader'
+
 import BatchTable from './../ThreeExtended/BatchTable';
 import Fetcher from "../../core/Scheduler/Providers/Fetcher";
 import {defined} from "../../core/defined";
+import {GLTFLoader} from "./GLTFLoader";
 
 const matrixChangeUpVectorZtoY = (new THREE.Matrix4()).makeRotationX(Math.PI / 2);
 // For gltf rotation
@@ -50,7 +51,7 @@ const textDecoder = new TextDecoder('utf-8');
 
 export default class B3DMLoader {
     constructor(){
-        this.glTFLoader = new THREE.GLTFLoader()
+        this.glTFLoader = new GLTFLoader()
     }
 
     load(options = {}){
@@ -61,13 +62,13 @@ export default class B3DMLoader {
 
         return new Promise((resolve, reject) => {
             Fetcher.arrayBuffer(url).then(json=>{
-        
+
                 const magic = textDecoder.decode(new Uint8Array(json, 0, 4));
-        
+
                 scope.parse(json).then(result=>{
                     resolve(result)
                 })
-        
+
             })
         })
     }
