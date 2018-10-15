@@ -35,8 +35,11 @@ let tileset = E3D.Tileset.fromJson({
     url: jsonRootUrl
 })
 
+/*tileset.readyPromise.then((value => {
+    console.log(value)
+}))*/
 
-
+console.log(tileset.readyPromise)
 
 
 

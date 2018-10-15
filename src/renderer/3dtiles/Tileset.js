@@ -9,6 +9,8 @@ import Event from "../../core/Event";
 import Cesium3DTilesetCache from "../../scene/Cesium3DTilesetCache";
 import ManagedArray from "../../core/ManagedArray";
 import Cesium3DTilesetStatistics from "../../scene/Cesium3DTilesetStatistics";
+import {Cesium3DTileRefine} from "../../scene/Cesium3DTileRefine";
+import {Axis} from "../../scene/Axis";
 
 
 export default class Tileset extends THREE.Object3D{
@@ -77,7 +79,7 @@ export default class Tileset extends THREE.Object3D{
 
         this._tileDebugLabels = undefined;
 
-        //this._readyPromise = when.defer();
+        this._readyPromise = Promise;
 
         this._classificationType = options.classificationType;
 
@@ -352,9 +354,9 @@ export default class Tileset extends THREE.Object3D{
          *     color : 'color("red")'
          * });
          * tileset.tileVisible.addEventListener(function(tile) {
-         *     var content = tile.content;
-         *     var featuresLength = content.featuresLength;
-         *     for (var i = 0; i < featuresLength; i+=2) {
+         *     let content = tile.content;
+         *     let featuresLength = content.featuresLength;
+         *     for (let i = 0; i < featuresLength; i+=2) {
          *         content.getFeature(i).color = Cesium.Color.fromRandom();
          *     }
          * });
@@ -610,18 +612,19 @@ export default class Tileset extends THREE.Object3D{
         tileset._url = resource.url;
         tileset._basePath = basePath;
 
-
         Tileset.loadJson(resource).then(tilesetJson=>{
             tileset._root = tileset.loadTileset(resource, tilesetJson)
+            var gltfUpAxis = defined(tilesetJson.asset.gltfUpAxis) ? Axis.fromName(tilesetJson.asset.gltfUpAxis) : Axis.Y;
+            tileset._asset = tilesetJson.asset;
+            tileset._properties = tilesetJson.properties;
+            tileset._geometricError = tilesetJson.geometricError;
+            tileset._extensionsUsed = tilesetJson.extensionsUsed;
+            tileset._gltfUpAxis = gltfUpAxis;
+            tileset._extras = tilesetJson.extras;
+            tileset._readyPromise.resolve(tileset)
         })
 
-
-
-
-
-
-
-
+        return tileset
 
     }
 
@@ -637,7 +640,7 @@ export default class Tileset extends THREE.Object3D{
 
         let statistics = this._statistics;
 
-        var tilesetVersion = asset.tilesetVersion;
+        let tilesetVersion = asset.tilesetVersion;
         if (defined(tilesetVersion)) {
             // Append the tileset version to the resource
             this._basePath += '?v=' + tilesetVersion;
@@ -646,7 +649,35 @@ export default class Tileset extends THREE.Object3D{
             delete resource.queryParameters.v;
         }
 
-        var rootTile = new Tile(this, resource, tilesetJson.root, parentTile);
+        let rootTile = new Tile(this, resource, tilesetJson.root, parentTile);
+
+        if(defined(parentTile)){
+            parentTile.childrenTile.push(rootTile);
+            rootTile._depth = parentTile._depth + 1;
+        }
+
+
+        let stack = [];
+        stack.push(rootTile);
+
+        while (stack.length > 0){
+            let tile = stack.pop();
+            ++statistics.numberOfTilesTotal;
+            this._allTilesAdditive = this._allTilesAdditive && (tile.refine === Cesium3DTileRefine.ADD);
+            let children = tile._header.children;
+            if(defined(children)){
+                let length = children.length;
+                for (let i = 0; i < length; ++i) {
+                    let childHeader = children[i];
+                    let childTile = new Tile(this, resource, childHeader, tile);
+                    tile.childrenTile.push(childTile);
+                    childTile._depth = tile._depth + 1;
+                    stack.push(childTile);
+                }
+            }
+        }
+        return rootTile
+
     }
 
     static loadJson(tilesetUrl){
@@ -674,6 +705,10 @@ export default class Tileset extends THREE.Object3D{
             }
 
         }
+    }
+
+    get readyPromise(){
+        return this._readyPromise
     }
 
 }

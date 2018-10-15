@@ -2,6 +2,8 @@ import * as THREE from 'three'
 import {defined} from "../../core/defined";
 import B3DMLoader from "../loaders/B3DMLoader";
 import {defaultValue} from "../../core/defaultValue";
+import {deprecationWarning} from "../../core/deprecationWarning";
+import {Cesium3DTileRefine} from "../../scene/Cesium3DTileRefine";
 
 const b3dmLoader = new B3DMLoader();
 
@@ -56,9 +58,10 @@ export default class Tile extends THREE.Object3D{
         super();
 
         this._tileset = tileset;
-        this._header = header;
-        let contentHeader = header.content;
 
+        this._header = header;
+
+        let contentHeader = header.content;
 
         this.viewerRequestVolume = header.viewerRequestVolume;
 
@@ -91,6 +94,46 @@ export default class Tile extends THREE.Object3D{
 
         //保存加载后的gltf模型数据
         this.gltf = null;
+
+        this.geometricError = header.geometricError;
+
+        if (!defined(this.geometricError)) {
+            this.geometricError = defined(parent) ? parent.geometricError : tileset._geometricError;
+            Tile._deprecationWarning('geometricErrorUndefined', 'Required property geometricError is undefined for this tile. Using parent\'s geometric error instead.');
+        }
+
+        let refine;
+        if(defined(header.refine)){
+            if(header.refine === 'replace' || header.refine === 'add'){
+                Tile._deprecationWarning('lowercase-refine', 'This tile uses a lowercase refine "' + header.refine + '". Instead use "' + header.refine.toUpperCase() + '".');
+            }
+            refine = (header.refine.toUpperCase() === 'REPLACE') ? Cesium3DTileRefine.REPLACE : Cesium3DTileRefine.ADD;
+        } else if( defined(parent)){
+            refine = parent.refine;
+        } else {
+            refine = Cesium3DTileRefine.REPLACE;
+        }
+
+        /**
+         * 瓦片的更新模式
+         * @type {Cesium3DTileRefine}
+         * @readonly
+         * @private
+         */
+        this.refine = refine;
+
+        this.childrenTile = [];
+
+        this.parentTile = parent;
+
+        /**
+         *
+         * @type {number}
+         * @private
+         */
+        this._depth = 0;
+
+
 
     }
 
@@ -125,3 +168,5 @@ export default class Tile extends THREE.Object3D{
         return this._ready
     }
 }
+
+Tile._deprecationWarning = deprecationWarning;
