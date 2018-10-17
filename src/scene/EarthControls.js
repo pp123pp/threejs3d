@@ -108,9 +108,9 @@ class EarthControls {
 
         var clock = new THREE.Clock();
 
-        scope.soonSpace.addEventListener('preUpdate', function () {
+        /*scope.soonSpace.addEventListener('preUpdate', function () {
             scope.update(clock.getDelta())
-        })
+        })*/
 
         this.update = function (delta) {
 

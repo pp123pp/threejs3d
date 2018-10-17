@@ -2,6 +2,7 @@ import * as THREE from 'three'
 import {defaultValue} from "../core/defaultValue";
 import Camera from "../renderer/Camera";
 import {EarthControls} from "./EarthControls";
+import TweenCollection from "./TweenCollection";
 
 
 export default class GlobeScene extends THREE.Scene{
@@ -20,6 +21,12 @@ export default class GlobeScene extends THREE.Scene{
          */
         this.mainLoopCollection = new Set();
 
+        this._shaderFrameCount = 0;
+
+        this._tweens = new TweenCollection();
+
+        this.clock = new THREE.Clock();
+
         this._renderer = new THREE.WebGLRenderer(renderState);
 
         this._camera = new Camera({
@@ -34,6 +41,22 @@ export default class GlobeScene extends THREE.Scene{
         this._control = new EarthControls(this);
 
         container.appendChild(this._renderer.domElement);
+
+    }
+
+    /**
+     * @private
+     */
+    initializeFrame(){
+        if(this._shaderFrameCount++ === 120){
+            //this._shaderFrameCount = 0;
+
+        }
+
+        this._tweens.update();
+
+        this._control.update(this.clock.getDelta());
+        this.camera._updateCameraChanged();
 
     }
 
