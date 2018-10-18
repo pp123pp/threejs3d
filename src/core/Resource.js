@@ -290,6 +290,35 @@ export default class Resource {
         }
     }
 
+    getUrlComponent(query, proxy){
+        if(this.isDataUri) {
+            return this._url;
+        }
+
+        var uri = new Uri(this._url);
+
+        if (query) {
+            stringifyQuery(uri, this);
+        }
+
+        // objectToQuery escapes the placeholders.  Undo that.
+        var url = uri.toString().replace(/%7B/g, '{').replace(/%7D/g, '}');
+
+        var template = this._templateValues;
+        var keys = Object.keys(template);
+        if (keys.length > 0) {
+            for (var i = 0; i < keys.length; i++) {
+                var key = keys[i];
+                var value = template[key];
+                url = url.replace(new RegExp('{' + key + '}', 'g'), encodeURIComponent(value));
+            }
+        }
+        if (proxy && defined(this.proxy)) {
+            url = this.proxy.getURL(url);
+        }
+        return url;
+    }
+
     static get isBlobSupported(){
         return xhrBlobSupported
     }

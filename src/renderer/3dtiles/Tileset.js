@@ -13,6 +13,11 @@ import {Cesium3DTileRefine} from "../../scene/Cesium3DTileRefine";
 import {Axis} from "../../scene/Axis";
 
 
+function updateDynamicScreenSpaceError(tileset) {
+
+}
+
+
 export default class Tileset extends THREE.Object3D{
     constructor(options = {}) {
         super();
@@ -707,8 +712,31 @@ export default class Tileset extends THREE.Object3D{
         }
     }
 
+    updateFixedFrame(frameState){
+        if(!this.visible || !this.ready){
+
+
+            let statistics = this._statistics;
+            statistics.clear();
+
+            if(this.dynamicScreenSpaceError){
+                updateDynamicScreenSpaceError(this, frameState);
+            }
+
+            this._cache.reset();
+
+            this._requestedTiles.length = 0;
+            //.selectTiles(this, frameState);
+
+        }
+    }
+
     get readyPromise(){
         return this._readyPromise
+    }
+
+    get ready(){
+        return defined(this._root)
     }
 
 }

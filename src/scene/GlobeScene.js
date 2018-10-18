@@ -3,7 +3,8 @@ import {defaultValue} from "../core/defaultValue";
 import Camera from "../renderer/Camera";
 import {EarthControls} from "./EarthControls";
 import TweenCollection from "./TweenCollection";
-
+import {Extension} from "../renderer/ThreeExtended/Extension";
+import FrameState from "./FrameState";
 
 export default class GlobeScene extends THREE.Scene{
     constructor(container, option = {}){
@@ -15,11 +16,6 @@ export default class GlobeScene extends THREE.Scene{
 
         //抗锯齿默认开启
         renderState.antialias = defaultValue( renderState.antialias, true);
-
-        /**
-         * 帧循环队列
-         */
-        this.mainLoopCollection = new Set();
 
         this._shaderFrameCount = 0;
 
@@ -42,6 +38,21 @@ export default class GlobeScene extends THREE.Scene{
 
         container.appendChild(this._renderer.domElement);
 
+        this._frameState = new FrameState(container);
+
+        this._frameState.camera = this._camera;
+
+    }
+
+    //帧循环事件
+    updateFixedFrame() {
+
+        let values = this.mainLoopCollection.values();
+
+        for(let value of values){
+            value.updateFixedFrame();
+        }
+
     }
 
     /**
@@ -57,6 +68,7 @@ export default class GlobeScene extends THREE.Scene{
 
         this._control.update(this.clock.getDelta());
         this.camera._updateCameraChanged();
+        this.updateFixedFrame(this._frameState)
 
     }
 

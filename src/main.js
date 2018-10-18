@@ -35,6 +35,8 @@ let tileset = E3D.Tileset.fromJson({
     url: jsonRootUrl
 })
 
+scene.mainLoopCollection.add(tileset)
+
 /*tileset.readyPromise.then((value => {
     console.log(value)
 }))*/

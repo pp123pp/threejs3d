@@ -5,7 +5,82 @@ import {getElement} from "./getElement";
 import {defaultValue} from "../core/defaultValue";
 import GlobeScene from "../scene/GlobeScene";
 
+function startRenderLoop(widget) {
+    widget._renderLoopRunning = true;
 
+    var lastFrameTime = 0;
+    function render(frameTime) {
+        if (widget.isDestroyed()) {
+            return;
+        }
+
+        if (widget._useDefaultRenderLoop) {
+            try {
+                var targetFrameRate = widget._targetFrameRate;
+                if (!defined(targetFrameRate)) {
+                    widget.resize();
+                    widget.render();
+
+                    requestAnimationFrame(render);
+                } else {
+                    var interval = 1000.0 / targetFrameRate;
+                    var delta = frameTime - lastFrameTime;
+
+                    if (delta > interval) {
+                        widget.resize();
+                        widget.render();
+                        lastFrameTime = frameTime - (delta % interval);
+                    }
+                    requestAnimationFrame(render);
+                }
+            } catch (error) {
+                widget._useDefaultRenderLoop = false;
+                widget._renderLoopRunning = false;
+                if (widget._showRenderLoopErrors) {
+                    var title = 'An error occurred while rendering.  Rendering has stopped.';
+                    widget.showErrorPanel(title, undefined, error);
+                }
+            }
+        } else {
+            widget._renderLoopRunning = false;
+        }
+    }
+
+    requestAnimationFrame(render);
+}
+
+function configureCanvasSize(widget) {
+    var canvas = widget._canvas;
+    var width = canvas.clientWidth;
+    var height = canvas.clientHeight;
+    var resolutionScale = widget._resolutionScale;
+    /*if (!widget._supportsImageRenderingPixelated) {
+        resolutionScale *= defaultValue(window.devicePixelRatio, 1.0);
+    }*/
+
+    widget._canvasWidth = width;
+    widget._canvasHeight = height;
+
+    width *= resolutionScale;
+    height *= resolutionScale;
+
+    canvas.width = width;
+    canvas.height = height;
+
+    widget._canRender = width !== 0 && height !== 0;
+}
+
+function configureCameraFrustum(widget) {
+    var canvas = widget._canvas;
+    var width = canvas.width;
+    var height = canvas.height;
+    if (width !== 0 && height !== 0) {
+
+        widget.renderer.setSize( width, height );
+
+        widget.camera.resize(widget._canvas)
+    }
+}
 
 //场景组件
 export default class Widgets {
@@ -49,58 +124,56 @@ export default class Widgets {
 
         this._scene = scene;
 
+        this._canRender = true;
 
-        resize();
+        this._renderLoopRunning = false;
 
-        function resize() {
+        this._useDefaultRenderLoop = undefined;
+        this.useDefaultRenderLoop = defaultValue(options.useDefaultRenderLoop, true);
 
-            let [containerWidth,containerHeight ] = [ container.clientWidth, container.clientHeight];
+        this._targetFrameRate = undefined;
+        this.targetFrameRate = options.targetFrameRate;
 
-            camera.aspect = containerWidth/containerHeight;
+        this._resolutionScale = 1.0;
 
-            camera.updateProjectionMatrix();
+        this._container = container;
+        this._canvas = container;
+        this._canvasWidth = 0;
+        this._canvasHeight = 0;
 
-            renderer.setSize( containerWidth, containerHeight );
 
-            camera.containerWidth = containerWidth;
-
-            camera.containerHeight = containerHeight;
-
-            camera.resize({scene, camera, renderer});
-
-        }
-
-        if(defined(window.addEventListener)){
-
-            window.addEventListener( 'resize', resize, false)
-
-        }
-
-        let animate = function () {
-
-            requestAnimationFrame( animate );
-
-            let [containerWidth,containerHeight ] = [ container.clientWidth, container.clientHeight];
-
-            camera.containerWidth = containerWidth;
-
-            camera.containerHeight = containerHeight;
-
-            camera.preUpdate({scene, camera, renderer});
-
-            scene.mainLoopCollection.forEach(value => {
-
-                value.mainLoopUpdate({scene, camera, renderer})
-
-            });
-
-            renderer.render( scene, camera );
-
-            scene.dispatchEvent({type: "preUpdate"})
+        this._canvas.oncontextmenu = function() {
+            return false;
+        };
+        this._canvas.onselectstart = function() {
+            return false;
         };
 
-        animate();
+    }
 
+    resize(){
+
+        let canvas = this._canvas;
+        let width = canvas.clientWidth;
+        let height = canvas.clientHeight;
+        if (!this._forceResize && this._canvasWidth === width && this._canvasHeight === height) {
+            return;
+        }
+
+        this._forceResize = false;
+        configureCanvasSize(this);
+        configureCameraFrustum(this);
+    }
+
+    render(){
+        if(this._canRender){
+            this._renderer.render( this._scene, this._camera );
+            this._scene.initializeFrame()
+        }
+    }
+
+    isDestroyed(){
+        return false
     }
 
     get scene(){
@@ -117,5 +190,32 @@ export default class Widgets {
 
     get control(){
         return this.scene.control
+    }
+
+    get useDefaultRenderLoop(){
+        return this._useDefaultRenderLoop;
+    }
+
+    set useDefaultRenderLoop(value){
+        if (this._useDefaultRenderLoop !== value) {
+            this._useDefaultRenderLoop = value;
+            if (value && !this._renderLoopRunning) {
+                startRenderLoop(this);
+            }
+        }
+    }
+
+    get resolutionScale(){
+        return this._resolutionScale;
+    }
+
+    set resolutionScale(value){
+        //>>includeStart('debug', pragmas.debug);
+        if (value <= 0) {
+            throw new DeveloperError('resolutionScale must be greater than 0.');
+        }
+        //>>includeEnd('debug');
+        this._resolutionScale = value;
+        this._forceResize = true;
     }
 }

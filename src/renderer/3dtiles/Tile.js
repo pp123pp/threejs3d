@@ -4,6 +4,9 @@ import B3DMLoader from "../loaders/B3DMLoader";
 import {defaultValue} from "../../core/defaultValue";
 import {deprecationWarning} from "../../core/deprecationWarning";
 import {Cesium3DTileRefine} from "../../scene/Cesium3DTileRefine";
+import Resource from "../../core/Resource";
+import RequestScheduler from "../../core/RequestScheduler";
+import {Cesium3DTileContentState} from "../../scene/Cesium3DTileContentState";
 
 const b3dmLoader = new B3DMLoader();
 
@@ -133,8 +136,32 @@ export default class Tile extends THREE.Object3D{
          */
         this._depth = 0;
 
+        let content;
+        let hasEmptyContent;
+        let contentState;
+        let contentResource;
+        let serverKey;
 
 
+        baseResource = Resource.createIfNeeded(baseResource);
+
+        if (defined(contentHeader)) {
+            let contentHeaderUri = contentHeader.uri;
+            if (defined(contentHeader.url)) {
+                Tile._deprecationWarning('contentUrl', 'This tileset JSON uses the "content.url" property which has been deprecated. Use "content.uri" instead.');
+                contentHeaderUri = contentHeader.url;
+            }
+            hasEmptyContent = false;
+            contentState = Cesium3DTileContentState.UNLOADED;
+            contentResource = baseResource.getDerivedResource({
+                url : contentHeaderUri
+            });
+            serverKey = RequestScheduler.getServerKey(contentResource.getUrlComponent());
+        } else {
+            //content = new Empty3DTileContent(tileset, this);
+            //hasEmptyContent = true;
+            //contentState = Cesium3DTileContentState.READY;
+        }
     }
 
     load(){
@@ -166,6 +193,14 @@ export default class Tile extends THREE.Object3D{
 
     get ready(){
         return this._ready
+    }
+
+    get contentReady(){
+        return this._contentState === Cesium3DTileContentState.READY;
+    }
+
+    get contentAvailable(){
+        return (this.contentReady && !this.hasEmptyContent && !this.hasTilesetContent) || (defined(this._expiredContent) && !this.contentFailed);
     }
 }
 
