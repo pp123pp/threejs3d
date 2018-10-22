@@ -3,12 +3,26 @@ import {defaultValue} from "../core/defaultValue";
 import {defined} from "../core/defined";
 import {pre3dTilesUpdate} from "../core/pre3dTilesUpdate";
 import Event from "../core/Event";
+import DeveloperError from "../core/DeveloperError";
 
 const tmp = {
     frustum: new THREE.Frustum(),
     matrix: new THREE.Matrix4(),
     box3: new THREE.Box3(),
 };
+
+function update(camera) {
+    //>>includeStart('debug', pragmas.debug);
+    if (!defined(camera.fov) || !defined(camera.aspect) || !defined(camera.near) || !defined(camera.far)) {
+        throw new DeveloperError('fov, aspect, near, or far parameters are not set.');
+    }
+    //>>includeEnd('debug');
+    
+    camera._fovy = (camera.aspect <= 1) ? camera.fov : Math.atan(Math.tan(camera.fov * 0.5) / camera.aspect) * 2.0;
+    
+    camera._sseDenominator = 2.0 * Math.tan(0.5 * camera._fovy);
+    
+}
 
 export default class Camera extends THREE.PerspectiveCamera{
 
@@ -48,6 +62,10 @@ export default class Camera extends THREE.PerspectiveCamera{
          * @default 0.5
          */
         this.percentageChanged = 0.5;
+        
+        this._fovy = undefined;
+        
+        this._sseDenominator = undefined;
 
     }
 
@@ -113,5 +131,9 @@ export default class Camera extends THREE.PerspectiveCamera{
         return tmp.frustum.intersectsSphere(sphere);
     }
 
+    get sseDenominator(){
+        update(this);
+        return this._sseDenominator;
+    }
 
 }

@@ -9,6 +9,10 @@ export default class FrameState {
         this.context = context;
 
         this.camera = null;
+        
+        this.renderer = null;
+        
+        this.scene = null;
 
         /**
          * The current frame number.

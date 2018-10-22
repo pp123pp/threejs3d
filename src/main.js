@@ -41,7 +41,7 @@ scene.mainLoopCollection.add(tileset)
     console.log(value)
 }))*/
 
-console.log(tileset.readyPromise)
+//console.log(tileset.readyPromise)
 
 
 

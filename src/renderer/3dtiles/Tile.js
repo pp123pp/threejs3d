@@ -7,8 +7,18 @@ import {Cesium3DTileRefine} from "../../scene/Cesium3DTileRefine";
 import Resource from "../../core/Resource";
 import RequestScheduler from "../../core/RequestScheduler";
 import {Cesium3DTileContentState} from "../../scene/Cesium3DTileContentState";
+import {RuntimeError} from "../../core/RuntimeError";
+import {Extension} from "../ThreeExtended/Extension";
+import TileOrientedBoundingBox from "../../scene/TileOrientedBoundingBox";
+import {FrustumExtension} from "../ThreeExtended/FrustumExtension";
 
 const b3dmLoader = new B3DMLoader();
+
+let scratchMatrix = new THREE.Matrix3();
+let scratchScale = new THREE.Vector3();
+let scratchHalfAxes = new THREE.Matrix3();
+let scratchCenter = new THREE.Vector3();
+let scratchTransform = new THREE.Matrix4();
 
 function getBox(volume, inverseTileTransform) {
     if (volume.region) {
@@ -51,6 +61,39 @@ function getBox(volume, inverseTileTransform) {
     }
 }
 
+
+function createBox(box, transform, result) {
+    let center = scratchCenter.set(box[0], box[1], box[2]);
+    let halfAxes = scratchHalfAxes.fromArray(box, 3);
+    
+    // Find the transformed center and halfAxes
+    center.applyMatrix4(transform);
+    let rotationScale = THREE.Matrix4.getRotation(transform, scratchMatrix);
+    halfAxes.copy(new THREE.Matrix3().multiplyMatrices(rotationScale, halfAxes))
+    
+    if (defined(result)) {
+        result.update(center, halfAxes);
+        return result;
+    }
+    return new TileOrientedBoundingBox(center, halfAxes);
+}
+
+function createRegion() {
+
+}
+
+function createSphere() {
+
+}
+
+function getBoundingVolume(tile, frameState) {
+    
+    return tile._boundingVolume;
+}
+
+
+
+
 /**
  * 创建一个单独的瓦片
  */
@@ -66,12 +109,28 @@ export default class Tile extends THREE.Object3D{
 
         let contentHeader = header.content;
 
-        this.viewerRequestVolume = header.viewerRequestVolume;
+        //this.viewerRequestVolume = header.viewerRequestVolume;
 
         this.transform = header.transform ? (new THREE.Matrix4()).fromArray(header.transform) : new THREE.Matrix4();
-
+        
         this.applyMatrix(this.transform);
-
+    
+        let parentTransform = defined(parent) ? parent.computedTransform : tileset.matrixWorld;
+    
+        let computedTransform = new THREE.Matrix4().multiplyMatrices(parentTransform, this.transform);
+    
+        this.computedTransform = computedTransform;
+    
+        this._boundingVolume = this.createBoundingVolume(header.boundingVolume, computedTransform);
+        //this._boundingVolume2D = undefined;
+    
+        var viewerRequestVolume;
+        if (defined(header.viewerRequestVolume)) {
+            viewerRequestVolume = this.createBoundingVolume(header.viewerRequestVolume, computedTransform);
+        }
+    
+        this._viewerRequestVolume = viewerRequestVolume;
+        
         this.geometricError = header.geometricError;
 
         this.parentFromLocalTransform = this.transform;
@@ -82,13 +141,15 @@ export default class Tile extends THREE.Object3D{
         m.getInverse(this.worldFromLocalTransform);
 
         //viewerRequestVolume:在进行渲染之前，viewerRequestVolume必须包含在视景体中
-        this.viewerRequestVolume = header.viewerRequestVolume ? getBox(header.viewerRequestVolume, m) : undefined;
+        //this.viewerRequestVolume = header.viewerRequestVolume ? getBox(header.viewerRequestVolume, m) : undefined;
+    
+        
+        this._viewerRequestVolume = viewerRequestVolume;
 
-
-        this.boundingVolume = getBox(header.boundingVolume, m);
-        if (this.boundingVolume.region) {
-            this.add(this.boundingVolume.region);
-        }
+        /*this._boundingVolume = getBox(header._boundingVolume, m);
+        if (this._boundingVolume.region) {
+            this.add(this._boundingVolume.region);
+        }*/
         //更新世界矩阵
         this.updateMatrixWorld();
 
@@ -162,6 +223,51 @@ export default class Tile extends THREE.Object3D{
             //hasEmptyContent = true;
             //contentState = Cesium3DTileContentState.READY;
         }
+    
+        this._content = content;
+        this._contentResource = contentResource;
+        this._contentState = contentState;
+        this._contentReadyToProcessPromise = undefined;
+        this._contentReadyPromise = undefined;
+        this._expiredContent = undefined;
+        
+        this._serverKey = serverKey;
+    
+        /**
+         * When <code>true</code>, the tile's content points to an external tileset.
+         * <p>
+         * This is <code>false</code> until the tile's content is loaded.
+         * </p>
+         *
+         * @type {Boolean}
+         * @readonly
+         *
+         * @private
+         */
+        this.hasTilesetContent = false;
+    
+    
+        var expire = header.expire;
+        var expireDuration;
+        var expireDate;
+        if (defined(expire)) {
+            expireDuration = expire.duration;
+            if (defined(expire.date)) {
+                expireDate = JulianDate.fromIso8601(expire.date);
+            }
+        }
+    
+        this._distanceToCamera = 0;
+        this._centerZDepth = 0;
+        this._screenSpaceError = 0;
+        this._visibilityPlaneMask = 0;
+        this._visible = false;
+        this._inRequestVolume = false;
+    
+        this._finalResolution = true;
+        this._depth = 0;
+        this._stackLength = 0;
+        this._selectionDepth = 0;
     }
 
     load(){
@@ -187,10 +293,113 @@ export default class Tile extends THREE.Object3D{
                 resolve(result)
             })
         })
-
-
+        
     }
-
+    
+    contentVisibility(frameState){
+    
+    }
+    
+    requestContent(){
+        var that = this;
+        var tileset = this._tileset;
+    
+        if (this.hasEmptyContent) {
+            return false;
+        }
+    
+        var resource = this._contentResource.clone();
+        var expired = this.contentExpired;
+        if (expired) {
+            // Append a query parameter of the tile expiration date to prevent caching
+            resource.setQueryParameters({
+                expired: this.expireDate.toString()
+            });
+        }
+    }
+    
+    visibility(frameState, parentVisibilityPlaneMask){
+        var cullingVolume = frameState.cullingVolume;
+        var boundingVolume = getBoundingVolume(this, frameState);
+    
+        var tileset = this._tileset;
+        var clippingPlanes = tileset.clippingPlanes;
+        if (defined(clippingPlanes) && clippingPlanes.enabled) {
+            var tileTransform = tileset.root.computedTransform;
+            var intersection = clippingPlanes.computeIntersectionWithBoundingVolume(boundingVolume, tileTransform);
+            this._isClipped = intersection !== Intersect.INSIDE;
+            if (intersection === Intersect.OUTSIDE) {
+                return CullingVolume.MASK_OUTSIDE;
+            }
+        }
+    
+        return cullingVolume.computeVisibilityWithPlaneMask(boundingVolume, parentVisibilityPlaneMask);
+    }
+    
+    updateTransform(parentTransform){
+        parentTransform = defaultValue(parentTransform, new THREE.Matrix4());
+        let computedTransform = scratchTransform.multiplyMatrices(parentTransform, this.transform);
+        let transformChanged = !computedTransform.equals(this.computedTransform);
+    
+        if (!transformChanged) {
+            return;
+        }
+    
+        Matrix4.clone(computedTransform, this.computedTransform);
+    
+        // Update the bounding volumes
+        let header = this._header;
+        let content = this._header.content;
+        this._boundingVolume = this.createBoundingVolume(header.boundingVolume, this.computedTransform, this._boundingVolume);
+        if (defined(this._contentBoundingVolume)) {
+            this._contentBoundingVolume = this.createBoundingVolume(content.boundingVolume, this.computedTransform, this._contentBoundingVolume);
+        }
+        if (defined(this._viewerRequestVolume)) {
+            this._viewerRequestVolume = this.createBoundingVolume(header.viewerRequestVolume, this.computedTransform, this._viewerRequestVolume);
+        }
+    
+        // Destroy the debug bounding volumes. They will be generated fresh.
+        this._debugBoundingVolume = this._debugBoundingVolume && this._debugBoundingVolume.destroy();
+        this._debugContentBoundingVolume = this._debugContentBoundingVolume && this._debugContentBoundingVolume.destroy();
+        this._debugViewerRequestVolume = this._debugViewerRequestVolume && this._debugViewerRequestVolume.destroy();
+    }
+    
+    createBoundingVolume(boundingVolumeHeader, transform, result){
+        if (!defined(boundingVolumeHeader)) {
+            throw new RuntimeError('boundingVolume must be defined');
+        }
+        if (defined(boundingVolumeHeader.box)) {
+            return createBox(boundingVolumeHeader.box, transform, result);
+        }
+        if (defined(boundingVolumeHeader.region)) {
+            return createRegion(boundingVolumeHeader.region, transform, this._initialTransform, result);
+        }
+        if (defined(boundingVolumeHeader.sphere)) {
+            return createSphere(boundingVolumeHeader.sphere, transform, result);
+        }
+        throw new RuntimeError('boundingVolume must contain a sphere, region, or box');
+    }
+    
+    distanceToTile(frameState){
+        var boundingVolume = getBoundingVolume(this, frameState);
+        return boundingVolume.distanceToCamera(frameState);
+    }
+    
+    distanceToTileCenter(frameState){
+        var tileBoundingVolume = getBoundingVolume(this, frameState);
+        var boundingVolume = tileBoundingVolume.boundingVolume; // Gets the underlying OrientedBoundingBox or BoundingSphere
+        var toCenter = new THREE.Vector3().subVectors(boundingVolume.center, frameState.camera.position);
+        var distance = toCenter.length();
+        toCenter.divideScalar(distance);
+        var dot = frameState.camera.position.dot(toCenter);
+        return distance * dot;
+    }
+    
+    insideViewerRequestVolume(frameState){
+        var viewerRequestVolume = this._viewerRequestVolume;
+        return !defined(viewerRequestVolume) || (viewerRequestVolume.distanceToCamera(frameState) === 0.0);
+    }
+    
     get ready(){
         return this._ready
     }
@@ -201,6 +410,14 @@ export default class Tile extends THREE.Object3D{
 
     get contentAvailable(){
         return (this.contentReady && !this.hasEmptyContent && !this.hasTilesetContent) || (defined(this._expiredContent) && !this.contentFailed);
+    }
+    
+    get boundingVolume(){
+        return this._boundingVolume;
+    }
+    
+    get contentExpired(){
+        return this._contentState === Cesium3DTileContentState.EXPIRED;
     }
 }
 

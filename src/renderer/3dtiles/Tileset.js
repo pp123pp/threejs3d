@@ -11,6 +11,8 @@ import ManagedArray from "../../core/ManagedArray";
 import Cesium3DTilesetStatistics from "../../scene/Cesium3DTilesetStatistics";
 import {Cesium3DTileRefine} from "../../scene/Cesium3DTileRefine";
 import {Axis} from "../../scene/Axis";
+import {Cesium3DTilesetTraversal} from "../../scene/Cesium3DTilesetTraversal";
+import DeveloperError from "../../core/DeveloperError";
 
 
 function updateDynamicScreenSpaceError(tileset) {
@@ -626,7 +628,7 @@ export default class Tileset extends THREE.Object3D{
             tileset._extensionsUsed = tilesetJson.extensionsUsed;
             tileset._gltfUpAxis = gltfUpAxis;
             tileset._extras = tilesetJson.extras;
-            tileset._readyPromise.resolve(tileset)
+            //tileset._readyPromise.resolve(tileset)
         })
 
         return tileset
@@ -713,22 +715,21 @@ export default class Tileset extends THREE.Object3D{
     }
 
     updateFixedFrame(frameState){
-        if(!this.visible || !this.ready){
-
-
-            let statistics = this._statistics;
-            statistics.clear();
-
-            if(this.dynamicScreenSpaceError){
-                updateDynamicScreenSpaceError(this, frameState);
-            }
-
-            this._cache.reset();
-
-            this._requestedTiles.length = 0;
-            //.selectTiles(this, frameState);
-
+        //console.log(frameState)
+        if(!this.ready || !this.visible){
+            return
         }
+        let statistics = this._statistics;
+        statistics.clear();
+    
+        if(this.dynamicScreenSpaceError){
+            updateDynamicScreenSpaceError(this, frameState);
+        }
+    
+        this._cache.reset();
+    
+        this._requestedTiles.length = 0;
+        Cesium3DTilesetTraversal.selectTiles(this, frameState);
     }
 
     get readyPromise(){
@@ -737,6 +738,16 @@ export default class Tileset extends THREE.Object3D{
 
     get ready(){
         return defined(this._root)
+    }
+    
+    get root(){
+        //>>includeStart('debug', pragmas.debug);
+        if (!this.ready) {
+            throw new DeveloperError('The tileset is not loaded.  Use Cesium3DTileset.readyPromise or wait for Cesium3DTileset.ready to be true.');
+        }
+        //>>includeEnd('debug');
+    
+        return this._root;
     }
 
 }
