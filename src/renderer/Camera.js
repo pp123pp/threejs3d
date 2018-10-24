@@ -11,8 +11,10 @@ const tmp = {
     box3: new THREE.Box3(),
 };
 
+let dir = new THREE.Vector3();
+
 function update(camera) {
-    //>>includeStart('debug', pragmas.debug);
+/*    //>>includeStart('debug', pragmas.debug);
     if (!defined(camera.fov) || !defined(camera.aspect) || !defined(camera.near) || !defined(camera.far)) {
         throw new DeveloperError('fov, aspect, near, or far parameters are not set.');
     }
@@ -20,7 +22,20 @@ function update(camera) {
     
     camera._fovy = (camera.aspect <= 1) ? camera.fov : Math.atan(Math.tan(camera.fov * 0.5) / camera.aspect) * 2.0;
     
-    camera._sseDenominator = 2.0 * Math.tan(0.5 * camera._fovy);
+    camera._sseDenominator = 2.0 * Math.tan(0.5 * camera._fovy);*/
+    
+    // pre-sse
+    //勾股定理，求屏幕对角线的长度
+    const hypotenuse = Math.sqrt(camera.containerWidth * camera.containerWidth + camera.containerHeight * camera.containerHeight);
+    //相机的观察角度
+    const radAngle = camera.fov * Math.PI / 180;
+    
+    //SSE用来判定HLOD细化，即，一个瓦片在当前视图是否足够精细，它的子瓦片是否需要考虑。
+    //SSE：屏幕空间误差，计算公式：http://www.cjig.cn/html/jig/2018/7/20180714.htm
+    // TODO: not correct -> see new preSSE
+    // const HFOV = 2.0 * Math.atan(Math.tan(radAngle * 0.5) / context.camera.ratio);
+    const HYFOV = 2.0 * Math.atan(Math.tan(radAngle * 0.5) * hypotenuse / camera.containerWidth);
+    camera._sseDenominator = (2.0 * Math.tan(HYFOV * 0.5));
     
 }
 
@@ -134,6 +149,11 @@ export default class Camera extends THREE.PerspectiveCamera{
     get sseDenominator(){
         update(this);
         return this._sseDenominator;
+    }
+    
+    get worldDirection(){
+        this.getWorldDirection(dir);
+        return dir.normalize()
     }
 
 }

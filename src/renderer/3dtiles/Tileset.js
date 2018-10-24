@@ -13,10 +13,257 @@ import {Cesium3DTileRefine} from "../../scene/Cesium3DTileRefine";
 import {Axis} from "../../scene/Axis";
 import {Cesium3DTilesetTraversal} from "../../scene/Cesium3DTilesetTraversal";
 import DeveloperError from "../../core/DeveloperError";
+import {Cesium3DTileOptimizations} from "../../scene/Cesium3DTileOptimizations";
+import {Cesium3DTileContentState} from "../../scene/Cesium3DTileContentState";
+import {Check} from "../../core/Check";
 
 
-function updateDynamicScreenSpaceError(tileset) {
+function updateDynamicScreenSpaceError(tileset, frameState) {
+    var up;
+    var direction;
+    var height;
+    var minimumHeight;
+    var maximumHeight;
+    
+    var camera = frameState.camera;
+    var root = tileset._root;
+    var tileBoundingVolume = root.contentBoundingVolume;
+    
+    if (tileBoundingVolume instanceof TileBoundingRegion) {
+        up = Cartesian3.normalize(camera.positionWC, scratchPositionNormal);
+        direction = camera.directionWC;
+        height = camera.positionCartographic.height;
+        minimumHeight = tileBoundingVolume.minimumHeight;
+        maximumHeight = tileBoundingVolume.maximumHeight;
+    } else {
+        // Transform camera position and direction into the local coordinate system of the tileset
+        var transformLocal = Matrix4.inverseTransformation(root.computedTransform, scratchMatrix);
+        var ellipsoid = frameState.mapProjection.ellipsoid;
+        var boundingVolume = tileBoundingVolume.boundingVolume;
+        var centerLocal = Matrix4.multiplyByPoint(transformLocal, boundingVolume.center, scratchCenter);
+        if (Cartesian3.magnitude(centerLocal) > ellipsoid.minimumRadius) {
+            // The tileset is defined in WGS84. Approximate the minimum and maximum height.
+            var centerCartographic = Cartographic.fromCartesian(centerLocal, ellipsoid, scratchCartographic);
+            up = Cartesian3.normalize(camera.positionWC, scratchPositionNormal);
+            direction = camera.directionWC;
+            height = camera.positionCartographic.height;
+            minimumHeight = 0.0;
+            maximumHeight = centerCartographic.height * 2.0;
+        } else {
+            // The tileset is defined in local coordinates (z-up)
+            var positionLocal = Matrix4.multiplyByPoint(transformLocal, camera.positionWC, scratchPosition);
+            up = Cartesian3.UNIT_Z;
+            direction = Matrix4.multiplyByPointAsVector(transformLocal, camera.directionWC, scratchDirection);
+            direction = Cartesian3.normalize(direction, direction);
+            height = positionLocal.z;
+            if (tileBoundingVolume instanceof TileOrientedBoundingBox) {
+                // Assuming z-up, the last component stores the half-height of the box
+                var boxHeight = root._header.boundingVolume.box[11];
+                minimumHeight = centerLocal.z - boxHeight;
+                maximumHeight = centerLocal.z + boxHeight;
+            } else if (tileBoundingVolume instanceof TileBoundingSphere) {
+                var radius = boundingVolume.radius;
+                minimumHeight = centerLocal.z - radius;
+                maximumHeight = centerLocal.z + radius;
+            }
+        }
+    }
+    
+    // The range where the density starts to lessen. Start at the quarter height of the tileset.
+    var heightFalloff = tileset.dynamicScreenSpaceErrorHeightFalloff;
+    var heightClose = minimumHeight + (maximumHeight - minimumHeight) * heightFalloff;
+    var heightFar = maximumHeight;
+    
+    var t = CesiumMath.clamp((height - heightClose) / (heightFar - heightClose), 0.0, 1.0);
+    
+    // Increase density as the camera tilts towards the horizon
+    var dot = Math.abs(Cartesian3.dot(direction, up));
+    var horizonFactor = 1.0 - dot;
+    
+    // Weaken the horizon factor as the camera height increases, implying the camera is further away from the tileset.
+    // The goal is to increase density for the "street view", not when viewing the tileset from a distance.
+    horizonFactor = horizonFactor * (1.0 - t);
+    
+    var density = tileset.dynamicScreenSpaceErrorDensity;
+    density *= horizonFactor;
+    
+    tileset._dynamicScreenSpaceErrorComputedDensity = density;
+}
 
+function sortRequestByPriority(a, b) {
+    return a._priority - b._priority;
+}
+
+function requestTiles(tileset) {
+    // Sort requests by priority before making any requests.
+    // This makes it less likely that requests will be cancelled after being issued.
+    var requestedTiles = tileset._requestedTiles;
+    var length = requestedTiles.length;
+    requestedTiles.sort(sortRequestByPriority);
+    for (var i = 0; i < length; ++i) {
+        requestContent(tileset, requestedTiles[i]);
+    }
+}
+
+function processTiles(tileset, frameState) {
+    filterProcessingQueue(tileset);
+    var tiles = tileset._processingQueue;
+    var length = tiles.length;
+    
+    // Process tiles in the PROCESSING state so they will eventually move to the READY state.
+    for (var i = 0; i < length; ++i) {
+        tiles[i].process(tileset, frameState);
+    }
+}
+
+function filterProcessingQueue(tileset) {
+    var tiles = tileset._processingQueue;
+    var length = tiles.length;
+    
+    var removeCount = 0;
+    for (var i = 0; i < length; ++i) {
+        var tile = tiles[i];
+        if (tile._contentState !== Cesium3DTileContentState.PROCESSING) {
+            ++removeCount;
+            continue;
+        }
+        if (removeCount > 0) {
+            tiles[i - removeCount] = tile;
+        }
+    }
+    tiles.length -= removeCount;
+}
+
+function requestContent(tileset, tile) {
+    if (tile.hasEmptyContent) {
+        return;
+    }
+    
+    var statistics = tileset._statistics;
+    var expired = tile.contentExpired;
+    var requested = tile.requestContent();
+    
+    if (!requested) {
+        ++statistics.numberOfAttemptedRequests;
+        return;
+    }
+    
+    if (expired) {
+        if (tile.hasTilesetContent) {
+            destroySubtree(tileset, tile);
+        } else {
+            statistics.decrementLoadCounts(tile.content);
+            --tileset._statistics.numberOfTilesWithContentReady;
+        }
+    }
+    
+    ++statistics.numberOfPendingRequests;
+    
+    tile.contentReadyToProcessPromise.then(addToProcessingQueue(tileset, tile));
+    tile.contentReadyPromise.then(handleTileSuccess(tileset, tile)).otherwise(handleTileFailure(tileset, tile));
+}
+
+function updateTiles(tileset, frameState) {
+    //tileset._styleEngine.applyStyle(tileset, frameState);
+    
+    var statistics = tileset._statistics;
+    var commandList = frameState.commandList;
+    var numberOfInitialCommands = commandList.length;
+    var selectedTiles = tileset._selectedTiles;
+    var selectedLength = selectedTiles.length;
+    var emptyTiles = tileset._emptyTiles;
+    var emptyLength = emptyTiles.length;
+    var tileVisible = tileset.tileVisible;
+    var i;
+    var tile;
+    
+    var bivariateVisibilityTest = tileset._skipLevelOfDetail && tileset._hasMixedContent && frameState.context.stencilBuffer && selectedLength > 0;
+    
+    tileset._backfaceCommands.length = 0;
+    
+    if (bivariateVisibilityTest) {
+        commandList.push(stencilClearCommand);
+    }
+    
+    var lengthBeforeUpdate = commandList.length;
+    for (i = 0; i < selectedLength; ++i) {
+        tile = selectedTiles[i];
+        // Raise the tileVisible event before update in case the tileVisible event
+        // handler makes changes that update needs to apply to WebGL resources
+        tileVisible.raiseEvent(tile);
+        tile.update(tileset, frameState);
+        statistics.incrementSelectionCounts(tile.content);
+        ++statistics.selected;
+    }
+    for (i = 0; i < emptyLength; ++i) {
+        tile = emptyTiles[i];
+        tile.update(tileset, frameState);
+    }
+    
+    var lengthAfterUpdate = commandList.length;
+    var addedCommandsLength = lengthAfterUpdate - lengthBeforeUpdate;
+    
+    tileset._backfaceCommands.trim();
+    
+    if (bivariateVisibilityTest) {
+        /**
+         * Consider 'effective leaf' tiles as selected tiles that have no selected descendants. They may have children,
+         * but they are currently our effective leaves because they do not have selected descendants. These tiles
+         * are those where with tile._finalResolution === true.
+         * Let 'unresolved' tiles be those with tile._finalResolution === false.
+         *
+         * 1. Render just the backfaces of unresolved tiles in order to lay down z
+         * 2. Render all frontfaces wherever tile._selectionDepth > stencilBuffer.
+         *    Replace stencilBuffer with tile._selectionDepth, when passing the z test.
+         *    Because children are always drawn before ancestors {@link Cesium3DTilesetTraversal#traverseAndSelect},
+         *    this effectively draws children first and does not draw ancestors if a descendant has already
+         *    been drawn at that pixel.
+         *    Step 1 prevents child tiles from appearing on top when they are truly behind ancestor content.
+         *    If they are behind the backfaces of the ancestor, then they will not be drawn.
+         *
+         * NOTE: Step 2 sometimes causes visual artifacts when backfacing child content has some faces that
+         * partially face the camera and are inside of the ancestor content. Because they are inside, they will
+         * not be culled by the depth writes in Step 1, and because they partially face the camera, the stencil tests
+         * will draw them on top of the ancestor content.
+         *
+         * NOTE: Because we always render backfaces of unresolved tiles, if the camera is looking at the backfaces
+         * of an object, they will always be drawn while loading, even if backface culling is enabled.
+         */
+        
+        var backfaceCommands = tileset._backfaceCommands.values;
+        var backfaceCommandsLength = backfaceCommands.length;
+        
+        commandList.length += backfaceCommandsLength;
+        
+        // copy commands to the back of the commandList
+        for (i = addedCommandsLength - 1; i >= 0; --i) {
+            commandList[lengthBeforeUpdate + backfaceCommandsLength + i] = commandList[lengthBeforeUpdate + i];
+        }
+        
+        // move backface commands to the front of the commandList
+        for (i = 0; i < backfaceCommandsLength; ++i) {
+            commandList[lengthBeforeUpdate + i] = backfaceCommands[i];
+        }
+    }
+    
+    // Number of commands added by each update above
+    statistics.numberOfCommands = (commandList.length - numberOfInitialCommands);
+    
+    // Only run EDL if simple attenuation is on
+    if (tileset.pointCloudShading.attenuation &&
+        tileset.pointCloudShading.eyeDomeLighting &&
+        (addedCommandsLength > 0)) {
+        tileset._pointCloudEyeDomeLighting.update(frameState, numberOfInitialCommands, tileset.pointCloudShading);
+    }
+    
+    if (tileset.debugShowGeometricError || tileset.debugShowRenderingStatistics || tileset.debugShowMemoryUsage || tileset.debugShowUrl) {
+        if (!defined(tileset._tileDebugLabels)) {
+            tileset._tileDebugLabels = new LabelCollection();
+        }
+        updateTileDebugLabels(tileset, frameState);
+    } else {
+        tileset._tileDebugLabels = tileset._tileDebugLabels && tileset._tileDebugLabels.destroy();
+    }
 }
 
 
@@ -620,6 +867,13 @@ export default class Tileset extends THREE.Object3D{
         tileset._basePath = basePath;
 
         Tileset.loadJson(resource).then(tilesetJson=>{
+            
+            //console.log(tilesetJson)
+    
+            tilesetJson.root.transform[12] = 0;
+            tilesetJson.root.transform[13] = 0;
+            tilesetJson.root.transform[14] = 0;
+            
             tileset._root = tileset.loadTileset(resource, tilesetJson)
             var gltfUpAxis = defined(tilesetJson.asset.gltfUpAxis) ? Axis.fromName(tilesetJson.asset.gltfUpAxis) : Axis.Y;
             tileset._asset = tilesetJson.asset;
@@ -682,6 +936,10 @@ export default class Tileset extends THREE.Object3D{
                     stack.push(childTile);
                 }
             }
+    
+            if (this._cullWithChildrenBounds) {
+                Cesium3DTileOptimizations.checkChildrenWithinParent(tile);
+            }
         }
         return rootTile
 
@@ -715,21 +973,35 @@ export default class Tileset extends THREE.Object3D{
     }
 
     updateFixedFrame(frameState){
-        //console.log(frameState)
+        //console.log(frameState.camera._sseDenominator)
         if(!this.ready || !this.visible){
             return
         }
+    
+        var outOfCore = true;
+        
         let statistics = this._statistics;
         statistics.clear();
     
-        if(this.dynamicScreenSpaceError){
+/*        if(this.dynamicScreenSpaceError){
             updateDynamicScreenSpaceError(this, frameState);
+        }*/
+    
+        if (outOfCore) {
+            this._cache.reset();
         }
-    
-        this._cache.reset();
-    
+        
         this._requestedTiles.length = 0;
         Cesium3DTilesetTraversal.selectTiles(this, frameState);
+    
+        if (outOfCore) {
+            requestTiles(this);
+            processTiles(this, frameState);
+        }
+        
+        console.log(this._requestedTiles)
+    
+        //updateTiles(this, frameState);
     }
 
     get readyPromise(){
@@ -748,6 +1020,18 @@ export default class Tileset extends THREE.Object3D{
         //>>includeEnd('debug');
     
         return this._root;
+    }
+    
+    get maximumScreenSpaceError(){
+        return this._maximumScreenSpaceError;
+    }
+    
+    set maximumScreenSpaceError(value){
+        //>>includeStart('debug', pragmas.debug);
+        Check.typeOf.number.greaterThanOrEquals('maximumScreenSpaceError', value, 0);
+        //>>includeEnd('debug');
+    
+        this._maximumScreenSpaceError = value;
     }
 
 }

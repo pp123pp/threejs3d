@@ -1,4 +1,5 @@
 import * as THREE from 'three'
+import {Check} from "../../core/Check";
 
 export const Matrix3Extension = {
     getColumn: function (matrix, index, result) {
@@ -14,6 +15,18 @@ export const Matrix3Extension = {
         result.y = y;
         result.z = z;
         return result;
+    },
+    
+    magnitudeSquared: function(cartesian){
+        //>>includeStart('debug', pragmas.debug);
+        Check.typeOf.object('cartesian', cartesian);
+        //>>includeEnd('debug');
+    
+        return cartesian.x * cartesian.x + cartesian.y * cartesian.y + cartesian.z * cartesian.z;
+    },
+    
+    magnitude: function(cartesian){
+        return Math.sqrt(THREE.Vector3.magnitudeSquared(cartesian));
     },
     
     /**

@@ -11,6 +11,8 @@ import {getBaseUri} from "./getBaseUri";
 import {isDataUri} from "./isDataUri";
 import Fetcher from "./Scheduler/Providers/Fetcher";
 import {getAbsoluteUri} from "./getAbsoluteUri";
+import RequestScheduler from "./RequestScheduler";
+import * as when from 'when'
 
 let xhrBlobSupported = (function() {
     try {
@@ -318,11 +320,76 @@ export default class Resource {
         }
         return url;
     }
+    
+    fetchArrayBuffer(){
+        return this.fetch({
+            responseType : 'arraybuffer'
+        });
+    }
+    
+    fetch(options) {
+        options = defaultClone(options, {});
+        options.method = 'GET';
+        
+        return this._makeRequest(options);
+    };
+    
+    _makeRequest(options) {
+        var resource = this;
+        checkAndResetRequest(resource.request);
+        
+        var request = resource.request;
+        request.url = resource.url;
+        
+        request.requestFunction = function() {
+            var responseType = options.responseType;
+            var headers = combine(options.headers, resource.headers);
+            var overrideMimeType = options.overrideMimeType;
+            var method = options.method;
+            var data = options.data;
+            var deferred = when.defer();
+            var xhr = Resource._Implementations.loadWithXhr(resource.url, responseType, method, data, headers, deferred, overrideMimeType);
+            if (defined(xhr) && defined(xhr.abort)) {
+                request.cancelFunction = function() {
+                    xhr.abort();
+                };
+            }
+            return deferred.promise;
+        };
+        
+        var promise = RequestScheduler.request(request);
+        if (!defined(promise)) {
+            return;
+        }
+        
+        return promise
+            .then(function(data) {
+                return data;
+            })
+            .otherwise(function(e) {
+                if (request.state !== RequestState.FAILED) {
+                    return when.reject(e);
+                }
+                
+                return resource.retryOnError(e)
+                    .then(function(retry) {
+                        if (retry) {
+                            // Reset request so it can try again
+                            request.state = RequestState.UNISSUED;
+                            request.deferred = undefined;
+                            
+                            return resource.fetch(options);
+                        }
+                        
+                        return when.reject(e);
+                    });
+            });
+    };
 
     static get isBlobSupported(){
         return xhrBlobSupported
     }
-
+    
     get queryParameters(){
         return this._queryParameters;
     }
@@ -331,3 +398,27 @@ export default class Resource {
         return isDataUri(this._url)
     }
 }
+
+Resource._Implementations = {};
+
+Resource._Implementations.createImage = function(url, crossOrigin, deferred) {
+    var image = new Image();
+    
+    image.onload = function() {
+        deferred.resolve(image);
+    };
+    
+    image.onerror = function(e) {
+        deferred.reject(e);
+    };
+    
+    if (crossOrigin) {
+        if (TrustedServers.contains(url)) {
+            image.crossOrigin = 'use-credentials';
+        } else {
+            image.crossOrigin = '';
+        }
+    }
+    
+    image.src = url;
+};
