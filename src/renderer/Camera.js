@@ -13,6 +13,8 @@ const tmp = {
 
 let dir = new THREE.Vector3();
 
+let _projScreenMatrix = new THREE.Matrix4();
+
 function update(camera) {
 /*    //>>includeStart('debug', pragmas.debug);
     if (!defined(camera.fov) || !defined(camera.aspect) || !defined(camera.near) || !defined(camera.far)) {
@@ -49,7 +51,7 @@ export default class Camera extends THREE.PerspectiveCamera{
 
         let near = defaultValue(options.near, 0.1);
 
-        let far = defaultValue(options.far, 500000000);
+        let far = defaultValue(options.far, 10000000000);
 
         super(fov, aspect, near, far);
 
@@ -66,10 +68,14 @@ export default class Camera extends THREE.PerspectiveCamera{
         this.preSSE = null;
 
         this.lastFramePs = new THREE.Vector3().copy(this.position);
-
+    
+        this._moveStart = new Event();
+        this._moveEnd = new Event();
+        
         this._changed = new Event();
         this._changedPosition = undefined;
         this._changedDirection = undefined;
+    
 
         /**
          * The amount the camera has to change before the <code>changed</code> event is raised. The value is a percentage in the [0, 1] range.
@@ -81,6 +87,8 @@ export default class Camera extends THREE.PerspectiveCamera{
         this._fovy = undefined;
         
         this._sseDenominator = undefined;
+        
+        this._frustum = new THREE.Frustum();
 
     }
 
@@ -154,6 +162,22 @@ export default class Camera extends THREE.PerspectiveCamera{
     get worldDirection(){
         this.getWorldDirection(dir);
         return dir.normalize()
+    }
+    
+    get frustum(){
+        this.updateMatrixWorld();
+        this.updateProjectionMatrix();
+        _projScreenMatrix.multiplyMatrices( this.projectionMatrix, this.matrixWorldInverse );
+        this._frustum.setFromMatrix( _projScreenMatrix );
+        return this._frustum;
+    }
+    
+    get moveStart(){
+        return this._moveStart
+    }
+    
+    get moveEnd(){
+        return this._moveEnd
     }
 
 }

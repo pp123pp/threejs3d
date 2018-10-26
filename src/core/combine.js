@@ -1,4 +1,5 @@
 import {defaultValue} from "./defaultValue";
+import {defined} from "./defined";
 
 
 export function combine(object1, object2, deep) {

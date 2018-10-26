@@ -5,6 +5,8 @@ import {EarthControls} from "./EarthControls";
 import TweenCollection from "./TweenCollection";
 import {Extension} from "../renderer/ThreeExtended/Extension";
 import FrameState from "./FrameState";
+import Event from "../core/Event";
+import {getTimestamp} from "../core/getTimestamp";
 
 
 var _frustum = new THREE.Frustum();
@@ -24,6 +26,8 @@ function updateFrameState(scene, frameNumber, time) {
     frameState.frameNumber = frameNumber;
     //frameState.time = JulianDate.clone(time, frameState.time);
     frameState.camera = camera;
+    
+    camera.updateMatrixWorld();
     
     _projScreenMatrix.multiplyMatrices( camera.projectionMatrix, camera.matrixWorldInverse );
     _frustum.setFromMatrix( _projScreenMatrix );
@@ -52,6 +56,60 @@ function updateFrameState(scene, frameNumber, time) {
     
     
 }
+
+function checkForCameraUpdates(scene) {
+    var camera = scene._camera;
+    var cameraClone = scene._cameraClone;
+    
+    //scene._frustumChanged = !camera.frustum.equals(cameraClone.frustum);
+    
+    if (!cameraEqual(camera, cameraClone, THREE.Math.EPSILON15)) {
+        if (!scene._cameraStartFired) {
+            camera.moveStart.raiseEvent();
+            scene._cameraStartFired = true;
+        }
+        scene._cameraMovedTime = getTimestamp();
+        cameraClone.clone(camera);
+        
+        return true;
+    }
+    
+    if (scene._cameraStartFired && getTimestamp() - scene._cameraMovedTime > scene.cameraEventWaitTime) {
+        camera.moveEnd.raiseEvent();
+        scene._cameraStartFired = false;
+    }
+    
+    return false;
+}
+
+function maxComponent(a, b) {
+    var x = Math.max(Math.abs(a.x), Math.abs(b.x));
+    var y = Math.max(Math.abs(a.y), Math.abs(b.y));
+    var z = Math.max(Math.abs(a.z), Math.abs(b.z));
+    return Math.max(Math.max(x, y), z);
+}
+
+var scratchPosition0 = new THREE.Vector3();
+var scratchPosition1 = new THREE.Vector3();
+
+function cameraEqual(camera0, camera1, epsilon) {
+    
+    camera0.updateMatrixWorld();
+    camera0.updateProjectionMatrix();
+    
+    camera1.updateMatrixWorld();
+    camera1.updateProjectionMatrix();
+    
+    var scalar = 1 / Math.max(1, maxComponent(camera0.position, camera1.position));
+    scratchPosition0.copy(camera0.position).multiplyScalar(scalar);
+    scratchPosition1.copy(camera1.position).multiplyScalar(scalar);
+    return THREE.Math.equalsEpsilon(scratchPosition0, scratchPosition1, epsilon) &&
+        THREE.Math.equalsEpsilon(camera0.worldDirection, camera1.worldDirection, epsilon) &&
+        THREE.Math.equalsEpsilon(camera0.up, camera1.up, epsilon) &&
+        THREE.Matrix4.equalsEpsilon(camera0.matrixWorld, camera1.matrixWorld, epsilon) &&
+        camera0.frustum.equalsEpsilon(camera1.frustum, epsilon);
+}
+
 
 export default class GlobeScene extends THREE.Scene{
     constructor(container, option = {}){
@@ -96,12 +154,18 @@ export default class GlobeScene extends THREE.Scene{
     
         //frameState.cullingVolume = camera.frustum.computeCullingVolume(camera.positionWC, camera.directionWC, camera.upWC);
         
-        
         this._frameState.renderer = this._renderer;
     
         this._frameState.scene = this;
+        
+        this._preUpdate = new Event();
+        
+        this._cameraClone = this._camera.clone();
     
-    
+        this._cameraStartFired = false;
+        
+        this.cameraEventWaitTime = 500.0;
+        
         updateFrameState(this, 0.0)
         
     }
@@ -132,6 +196,12 @@ export default class GlobeScene extends THREE.Scene{
         this.camera._updateCameraChanged();
         this.updateFixedFrame(this._frameState)
 
+    }
+    
+    renderFixedFrame(){
+        this._preUpdate.raiseEvent();
+    
+        let cameraChanged = checkForCameraUpdates(this);
     }
 
     get renderer(){

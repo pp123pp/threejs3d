@@ -142,3 +142,5 @@ TrustedServers.contains = function(url) {
 TrustedServers.clear = function() {
     _servers = {};
 };
+
+export {TrustedServers}

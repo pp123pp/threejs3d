@@ -14,6 +14,8 @@ export default class FrameState {
         
         this.scene = null;
 
+        this.commandList = [];
+        
         /**
          * The current frame number.
          *
@@ -55,5 +57,16 @@ export default class FrameState {
          * @type {Color}
          */
         this.backgroundColor = undefined;
+        
+        this._cullingVolume = undefined;
     }
+    
+    get cullingVolume(){
+        return this.camera.frustum
+    }
+    
+    set cullingVolume(value){
+        this._cullingVolume = value;
+    }
+    
 }

@@ -4,6 +4,7 @@ import BatchTable from './../ThreeExtended/BatchTable';
 import Fetcher from "../../core/Scheduler/Providers/Fetcher";
 import {defined} from "../../core/defined";
 import {GLTFLoader} from "./GLTFLoader";
+import * as when from './../../ThirdParty/when'
 
 const matrixChangeUpVectorZtoY = (new THREE.Matrix4()).makeRotationX(Math.PI / 2);
 // For gltf rotation

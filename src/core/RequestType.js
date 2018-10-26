@@ -3,21 +3,38 @@
  * @type {{IMAGERY: number, TILES3D: number, OTHER: number}}
  */
 const RequestType = {
-
+    
     /**
-     * 图片请求
+     * Terrain request.
+     *
+     * @type Number
+     * @constant
      */
-    IMAGERY: 0,
-
+    TERRAIN : 0,
+    
     /**
-     * 3dtiles
+     * Imagery request.
+     *
+     * @type Number
+     * @constant
      */
-    TILES3D: 1,
-
+    IMAGERY : 1,
+    
     /**
-     * 其他
+     * 3D Tiles request.
+     *
+     * @type Number
+     * @constant
      */
-    OTHER: 2
+    TILES3D : 2,
+    
+    /**
+     * Other request.
+     *
+     * @type Number
+     * @constant
+     */
+    OTHER : 3
 };
 
 export {RequestType}

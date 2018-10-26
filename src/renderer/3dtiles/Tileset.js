@@ -16,6 +16,7 @@ import DeveloperError from "../../core/DeveloperError";
 import {Cesium3DTileOptimizations} from "../../scene/Cesium3DTileOptimizations";
 import {Cesium3DTileContentState} from "../../scene/Cesium3DTileContentState";
 import {Check} from "../../core/Check";
+import ClearCommand from "../ClearCommand";
 
 
 function updateDynamicScreenSpaceError(tileset, frameState) {
@@ -134,6 +135,57 @@ function filterProcessingQueue(tileset) {
     tiles.length -= removeCount;
 }
 
+function addToProcessingQueue(tileset, tile) {
+    return function() {
+        tileset._processingQueue.push(tile);
+        
+        --tileset._statistics.numberOfPendingRequests;
+        ++tileset._statistics.numberOfTilesProcessing;
+    };
+}
+
+function handleTileSuccess(tileset, tile) {
+    return function() {
+        --tileset._statistics.numberOfTilesProcessing;
+        
+        if (!tile.hasTilesetContent) {
+            // RESEARCH_IDEA: ability to unload tiles (without content) for an
+            // external tileset when all the tiles are unloaded.
+            tileset._statistics.incrementLoadCounts(tile.content);
+            ++tileset._statistics.numberOfTilesWithContentReady;
+            
+            // Add to the tile cache. Previously expired tiles are already in the cache and won't get re-added.
+            tileset._cache.add(tile);
+        }
+        
+        tileset.tileLoad.raiseEvent(tile);
+    };
+}
+
+function handleTileFailure(tileset, tile) {
+    return function(error) {
+        if (tileset._processingQueue.indexOf(tile) >= 0) {
+            // Failed during processing
+            --tileset._statistics.numberOfTilesProcessing;
+        } else {
+            // Failed when making request
+            --tileset._statistics.numberOfPendingRequests;
+        }
+        
+        var url = tile._contentResource.url;
+        var message = defined(error.message) ? error.message : error.toString();
+        if (tileset.tileFailed.numberOfListeners > 0) {
+            tileset.tileFailed.raiseEvent({
+                url : url,
+                message : message
+            });
+        } else {
+            console.log('A 3D tile failed to load: ' + url);
+            console.log('Error: ' + message);
+        }
+    };
+}
+
 function requestContent(tileset, tile) {
     if (tile.hasEmptyContent) {
         return;
@@ -162,6 +214,11 @@ function requestContent(tileset, tile) {
     tile.contentReadyToProcessPromise.then(addToProcessingQueue(tileset, tile));
     tile.contentReadyPromise.then(handleTileSuccess(tileset, tile)).otherwise(handleTileFailure(tileset, tile));
 }
+
+var stencilClearCommand = new ClearCommand({
+    stencil : 0,
+    pass : 4
+});
 
 function updateTiles(tileset, frameState) {
     //tileset._styleEngine.applyStyle(tileset, frameState);
@@ -250,17 +307,17 @@ function updateTiles(tileset, frameState) {
     statistics.numberOfCommands = (commandList.length - numberOfInitialCommands);
     
     // Only run EDL if simple attenuation is on
-    if (tileset.pointCloudShading.attenuation &&
+/*    if (tileset.pointCloudShading.attenuation &&
         tileset.pointCloudShading.eyeDomeLighting &&
         (addedCommandsLength > 0)) {
         tileset._pointCloudEyeDomeLighting.update(frameState, numberOfInitialCommands, tileset.pointCloudShading);
-    }
+    }*/
     
     if (tileset.debugShowGeometricError || tileset.debugShowRenderingStatistics || tileset.debugShowMemoryUsage || tileset.debugShowUrl) {
-        if (!defined(tileset._tileDebugLabels)) {
+        /*if (!defined(tileset._tileDebugLabels)) {
             tileset._tileDebugLabels = new LabelCollection();
         }
-        updateTileDebugLabels(tileset, frameState);
+        updateTileDebugLabels(tileset, frameState);*/
     } else {
         tileset._tileDebugLabels = tileset._tileDebugLabels && tileset._tileDebugLabels.destroy();
     }
@@ -870,9 +927,9 @@ export default class Tileset extends THREE.Object3D{
             
             //console.log(tilesetJson)
     
-            tilesetJson.root.transform[12] = 0;
+            /*tilesetJson.root.transform[12] = 0;
             tilesetJson.root.transform[13] = 0;
-            tilesetJson.root.transform[14] = 0;
+            tilesetJson.root.transform[14] = 0;*/
             
             tileset._root = tileset.loadTileset(resource, tilesetJson)
             var gltfUpAxis = defined(tilesetJson.asset.gltfUpAxis) ? Axis.fromName(tilesetJson.asset.gltfUpAxis) : Axis.Y;
@@ -991,15 +1048,24 @@ export default class Tileset extends THREE.Object3D{
             this._cache.reset();
         }
         
+        if(this._requestedTiles.length>0){
+            console.log(this._requestedTiles)
+        }
+        
+        
         this._requestedTiles.length = 0;
         Cesium3DTilesetTraversal.selectTiles(this, frameState);
     
+        //console.log(this._requestedTiles.length)
+        
         if (outOfCore) {
             requestTiles(this);
             processTiles(this, frameState);
         }
+    
+        //updateTiles(this, frameState);
         
-        console.log(this._requestedTiles)
+        //console.log(this._requestedTiles)
     
         //updateTiles(this, frameState);
     }

@@ -8,7 +8,7 @@ import GlobeScene from "../scene/GlobeScene";
 function startRenderLoop(widget) {
     widget._renderLoopRunning = true;
 
-    var lastFrameTime = 0;
+    let lastFrameTime = 0;
     function render(frameTime) {
         if (widget.isDestroyed()) {
             return;
@@ -16,19 +16,19 @@ function startRenderLoop(widget) {
 
         if (widget._useDefaultRenderLoop) {
             try {
-                var targetFrameRate = widget._targetFrameRate;
+                let targetFrameRate = widget._targetFrameRate;
                 if (!defined(targetFrameRate)) {
                     widget.resize();
-                    widget.render();
+                    widget.renderFixedFrame();
 
                     requestAnimationFrame(render);
                 } else {
-                    var interval = 1000.0 / targetFrameRate;
-                    var delta = frameTime - lastFrameTime;
+                    let interval = 1000.0 / targetFrameRate;
+                    let delta = frameTime - lastFrameTime;
 
                     if (delta > interval) {
                         widget.resize();
-                        widget.render();
+                        widget.renderFixedFrame();
                         lastFrameTime = frameTime - (delta % interval);
                     }
                     requestAnimationFrame(render);
@@ -37,8 +37,10 @@ function startRenderLoop(widget) {
                 widget._useDefaultRenderLoop = false;
                 widget._renderLoopRunning = false;
                 if (widget._showRenderLoopErrors) {
-                    var title = 'An error occurred while rendering.  Rendering has stopped.';
-                    widget.showErrorPanel(title, undefined, error);
+                    let title = 'An error occurred while rendering.  Rendering has stopped.';
+                    //widget.showErrorPanel(title, undefined, error);
+                    
+                    console.log(error)
                 }
             }
         } else {
@@ -50,10 +52,10 @@ function startRenderLoop(widget) {
 }
 
 function configureCanvasSize(widget) {
-    var canvas = widget._canvas;
-    var width = canvas.clientWidth;
-    var height = canvas.clientHeight;
-    var resolutionScale = widget._resolutionScale;
+    let canvas = widget._canvas;
+    let width = canvas.clientWidth;
+    let height = canvas.clientHeight;
+    let resolutionScale = widget._resolutionScale;
     /*if (!widget._supportsImageRenderingPixelated) {
         resolutionScale *= defaultValue(window.devicePixelRatio, 1.0);
     }*/
@@ -71,9 +73,9 @@ function configureCanvasSize(widget) {
 }
 
 function configureCameraFrustum(widget) {
-    var canvas = widget._canvas;
-    var width = canvas.width;
-    var height = canvas.height;
+    let canvas = widget._canvas;
+    let width = canvas.width;
+    let height = canvas.height;
     if (width !== 0 && height !== 0) {
 
         widget.renderer.setSize( width, height );
@@ -164,11 +166,12 @@ export default class Widgets {
         configureCanvasSize(this);
         configureCameraFrustum(this);
     }
-
-    render(){
+    
+    renderFixedFrame(){
         if(this._canRender){
             this._renderer.render( this._scene, this._camera );
-            this._scene.initializeFrame()
+            this._scene.initializeFrame();
+            this.scene.renderFixedFrame()
         }
     }
 
