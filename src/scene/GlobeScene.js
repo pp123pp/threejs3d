@@ -7,6 +7,7 @@ import {Extension} from "../renderer/ThreeExtended/Extension";
 import FrameState from "./FrameState";
 import Event from "../core/Event";
 import {getTimestamp} from "../core/getTimestamp";
+import RequestScheduler from "../core/RequestScheduler";
 
 
 var _frustum = new THREE.Frustum();
@@ -69,7 +70,7 @@ function checkForCameraUpdates(scene) {
             scene._cameraStartFired = true;
         }
         scene._cameraMovedTime = getTimestamp();
-        cameraClone.clone(camera);
+        cameraClone.copy(camera, true);
         
         return true;
     }
@@ -103,11 +104,23 @@ function cameraEqual(camera0, camera1, epsilon) {
     var scalar = 1 / Math.max(1, maxComponent(camera0.position, camera1.position));
     scratchPosition0.copy(camera0.position).multiplyScalar(scalar);
     scratchPosition1.copy(camera1.position).multiplyScalar(scalar);
-    return THREE.Math.equalsEpsilon(scratchPosition0, scratchPosition1, epsilon) &&
-        THREE.Math.equalsEpsilon(camera0.worldDirection, camera1.worldDirection, epsilon) &&
-        THREE.Math.equalsEpsilon(camera0.up, camera1.up, epsilon) &&
-        THREE.Matrix4.equalsEpsilon(camera0.matrixWorld, camera1.matrixWorld, epsilon) &&
-        camera0.frustum.equalsEpsilon(camera1.frustum, epsilon);
+    
+    return THREE.Vector3.equalsEpsilon(scratchPosition0, scratchPosition1, epsilon) &&
+        THREE.Vector3.equalsEpsilon(camera0.worldDirection, camera1.worldDirection, epsilon) &&
+        THREE.Vector3.equalsEpsilon(camera0.up, camera1.up, epsilon) &&
+        THREE.Matrix4.equalsEpsilon(camera0.matrixWorld, camera1.matrixWorld, epsilon)
+}
+
+function tryAndCatchError(scene, time, functionToExecute) {
+    try {
+        functionToExecute(scene, time);
+    } catch (error) {
+        scene._renderError.raiseEvent(scene, error);
+        
+        if (scene.rethrowRenderErrors) {
+            throw error;
+        }
+    }
 }
 
 
@@ -159,8 +172,10 @@ export default class GlobeScene extends THREE.Scene{
         this._frameState.scene = this;
         
         this._preUpdate = new Event();
+    
+        this._renderError = new Event();
         
-        this._cameraClone = this._camera.clone();
+        this._cameraClone = new Camera().copy(this._camera, true);
     
         this._cameraStartFired = false;
         
@@ -199,9 +214,13 @@ export default class GlobeScene extends THREE.Scene{
     }
     
     renderFixedFrame(){
+        
         this._preUpdate.raiseEvent();
-    
+        
         let cameraChanged = checkForCameraUpdates(this);
+        
+        RequestScheduler.update();
+        
     }
 
     get renderer(){

@@ -262,24 +262,37 @@ function Cesium3DTilesetTraversal() {
         if (tile._updatedVisibilityFrame === frameState.frameNumber) {
             // Return early if visibility has already been checked during the traversal.
             // The visibility may have already been checked if the cullWithChildrenBounds optimization is used.
-            //return;
+            return;
         }
+        
+        //console.log("aaa")
 
+        //获取父Tile
         let parentTile = tile.parentTile;
+        //获取父Tile的仿射矩阵，如果没有则为根Tile的仿射矩阵
         let parentTransform = defined(parentTile) ? parentTile.computedTransform : tileset._modelMatrix;
+        
         let parentVisibilityPlaneMask = defined(parentTile) ? parentTile._visibilityPlaneMask : CullingVolume.MASK_INDETERMINATE;
 
+        //更新仿射矩阵
         tile.updateTransform(parentTransform);
+        
+        //计算当前Tile与相机的距离
         tile._distanceToCamera = tile.distanceToTile(frameState);
-
-        //console.log(tile._distanceToCamera)
-
-
+        
+        //计算包围体中心与相机之间的距离
         tile._centerZDepth = tile.distanceToTileCenter(frameState);
+        
+        //获取当前屏幕空间误差
         tile._screenSpaceError = getScreenSpaceError(tileset, tile.geometricError, tile, frameState);
+        
         tile._visibilityPlaneMask = tile.visibility(frameState, parentVisibilityPlaneMask); // Use parent's plane mask to speed up visibility test
+        
         tile._visible = tile._visibilityPlaneMask !== CullingVolume.MASK_OUTSIDE;
+        
+        //判断相机是否在Tile的包围体中
         tile._inRequestVolume = tile.insideViewerRequestVolume(frameState);
+        
         tile._updatedVisibilityFrame = frameState.frameNumber;
     }
 
@@ -295,25 +308,16 @@ function Cesium3DTilesetTraversal() {
         return anyVisible;
     }
 
-    function meetsScreenSpaceErrorEarly(tileset, tile, frameState) {
-        let parent = tile.parent;
-        if (!defined(parent) || parent.hasTilesetContent || (parent.refine !== Cesium3DTileRefine.ADD)) {
-            return false;
-        }
-
-        // Use parent's geometric error with child's box to see if the tile already meet the SSE
-        let sse = getScreenSpaceError(tileset, parent.geometricError, tile, frameState);
-        return sse <= tileset._maximumScreenSpaceError;
-    }
-
     function updateTileVisibility(tileset, tile, frameState) {
         updateVisibility(tileset, tile, frameState);
 
+        //判断当前Tile是否可见
         if (!isVisible(tile)) {
             return;
         }
 
         // Use parent's geometric error with child's box to see if the tile already meet the SSE
+        //获取当前Tile的父Tile
         let parentTile = tile.parentTile;
         if (defined(parentTile) && (parentTile.refine === Cesium3DTileRefine.ADD) && getScreenSpaceError(tileset, parentTile.geometricError, tile, frameState) <= tileset._maximumScreenSpaceError) {
             tile._visible = false;
@@ -321,8 +325,11 @@ function Cesium3DTilesetTraversal() {
         }
 
         // Optimization - if none of the tile's children are visible then this tile isn't visible
+        //当前瓦片的替换类型是否为REPLACE
         let replace = tile.refine === Cesium3DTileRefine.REPLACE;
+        
         let useOptimization = tile._optimChildrenWithinParent === Cesium3DTileOptimizationHint.USE_OPTIMIZATION;
+        
         let hasChildren = tile.childrenTile.length > 0;
         if (replace && useOptimization && hasChildren) {
             if (!anyChildrenVisible(tileset, tile, frameState)) {

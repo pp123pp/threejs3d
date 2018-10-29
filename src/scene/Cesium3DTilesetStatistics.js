@@ -1,3 +1,4 @@
+import {defined} from "../core/defined";
 
 function updatePointAndFeatureCounts(statistics, content, decrement, load) {
     var contents = content.innerContents;

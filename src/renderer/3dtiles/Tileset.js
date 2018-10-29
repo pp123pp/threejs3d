@@ -1,4 +1,5 @@
 import * as THREE from 'three'
+import * as when from '../../ThirdParty/when'
 import {defined} from "../../core/defined";
 import {defaultValue} from "../../core/defaultValue";
 import Fetcher from "../../core/Scheduler/Providers/Fetcher";
@@ -202,7 +203,7 @@ function requestContent(tileset, tile) {
     
     if (expired) {
         if (tile.hasTilesetContent) {
-            destroySubtree(tileset, tile);
+            //destroySubtree(tileset, tile);
         } else {
             statistics.decrementLoadCounts(tile.content);
             --tileset._statistics.numberOfTilesWithContentReady;
@@ -323,6 +324,21 @@ function updateTiles(tileset, frameState) {
     }
 }
 
+function unloadTile(tileset, tile) {
+    tileset.tileUnload.raiseEvent(tile);
+    tileset._statistics.decrementLoadCounts(tile.content);
+    --tileset._statistics.numberOfTilesWithContentReady;
+    tile.unloadContent();
+}
+
+function destroyTile(tileset, tile) {
+    tileset._cache.unloadTile(tileset, tile, unloadTile);
+    tile.destroy();
+}
+
+function unloadTiles(tileset) {
+    tileset._cache.unloadTiles(tileset, unloadTile);
+}
 
 export default class Tileset extends THREE.Object3D{
     constructor(options = {}) {
@@ -390,7 +406,7 @@ export default class Tileset extends THREE.Object3D{
 
         this._tileDebugLabels = undefined;
 
-        this._readyPromise = Promise;
+        this._readyPromise = when.defer();
 
         this._classificationType = options.classificationType;
 
@@ -939,7 +955,7 @@ export default class Tileset extends THREE.Object3D{
             tileset._extensionsUsed = tilesetJson.extensionsUsed;
             tileset._gltfUpAxis = gltfUpAxis;
             tileset._extras = tilesetJson.extras;
-            //tileset._readyPromise.resolve(tileset)
+            tileset._readyPromise.resolve(tileset)
         })
 
         return tileset
@@ -1037,12 +1053,12 @@ export default class Tileset extends THREE.Object3D{
     
         var outOfCore = true;
         
-        let statistics = this._statistics;
+/*        let statistics = this._statistics;
         statistics.clear();
     
-/*        if(this.dynamicScreenSpaceError){
+/!*        if(this.dynamicScreenSpaceError){
             updateDynamicScreenSpaceError(this, frameState);
-        }*/
+        }*!/
     
         if (outOfCore) {
             this._cache.reset();
@@ -1050,28 +1066,31 @@ export default class Tileset extends THREE.Object3D{
         
         if(this._requestedTiles.length>0){
             console.log(this._requestedTiles)
-        }
+        }*/
         
         
+        //清空上一帧的渲染队列
         this._requestedTiles.length = 0;
         Cesium3DTilesetTraversal.selectTiles(this, frameState);
     
         //console.log(this._requestedTiles.length)
+  
+  
         
         if (outOfCore) {
             requestTiles(this);
             processTiles(this, frameState);
         }
     
-        //updateTiles(this, frameState);
-        
-        //console.log(this._requestedTiles)
+        /*updateTiles(this, frameState);
     
-        //updateTiles(this, frameState);
+        if (outOfCore) {
+            unloadTiles(this);
+        }*/
     }
 
     get readyPromise(){
-        return this._readyPromise
+        return this._readyPromise.promise
     }
 
     get ready(){
@@ -1098,6 +1117,23 @@ export default class Tileset extends THREE.Object3D{
         //>>includeEnd('debug');
     
         this._maximumScreenSpaceError = value;
+    }
+    
+    get maximumMemoryUsage(){
+        return this._maximumMemoryUsage
+    }
+    
+    set maximumMemoryUsage(value){
+        //>>includeStart('debug', pragmas.debug);
+        Check.typeOf.number.greaterThanOrEquals('value', value, 0);
+        //>>includeEnd('debug');
+    
+        this._maximumMemoryUsage = value;
+    }
+    
+    get totalMemoryUsageInBytes(){
+        var statistics = this._statistics;
+        return statistics.texturesByteLength + statistics.geometryByteLength + statistics.batchTableByteLength;
     }
 
 }

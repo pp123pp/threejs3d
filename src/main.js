@@ -43,10 +43,16 @@ let tileset = E3D.Tileset.fromJson({
 
 console.log(tileset)
 
+scene.add(tileset)
+
 scene.mainLoopCollection.add(tileset)
 
+tileset.readyPromise.then(object=>{
+    console.log(object)
+})
 
-/*let loader = new E3D.B3DMLoader().load({
+
+let loader = new E3D.B3DMLoader().load({
     url: "https://raw.githubusercontent.com/AnalyticalGraphicsInc/3d-tiles-samples/master/tilesets/TilesetWithDiscreteLOD/dragon_medium.b3dm"
 }).then(result=>{
     result.gltf.scene.traverse(child=>{
@@ -64,7 +70,7 @@ scene.mainLoopCollection.add(tileset)
     scene.add(object);
     scene.control.addIntersectObject(object);
     
-    object.position.set(1215676.2153780775, -4739055.029838431, 4081926.095098698)
+    object.position.set(1215676.2153780775, -4739055.029838431, 4084137.095098698)
     
     let box = new THREE.Box3();
     
@@ -79,7 +85,7 @@ scene.mainLoopCollection.add(tileset)
     console.log(sphere)
     
     
-})*/
+})
 
 /*tileset.readyPromise.then((value => {
     console.log(value)

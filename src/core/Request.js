@@ -4,111 +4,191 @@ import {RequestState} from "./RequestState";
 import {defined} from "./defined";
 
 
-export default class Request {
+/**
+ * Stores information for making a request. In general this does not need to be constructed directly.
+ *
+ * @alias Request
+ * @constructor
+ *
+ * @param {Object} [options] An object with the following properties:
+ * @param {Boolean} [options.url] The url to request.
+ * @param {Request~RequestCallback} [options.requestFunction] The function that makes the actual data request.
+ * @param {Request~CancelCallback} [options.cancelFunction] The function that is called when the request is cancelled.
+ * @param {Request~PriorityCallback} [options.priorityFunction] The function that is called to update the request's priority, which occurs once per frame.
+ * @param {Number} [options.priority=0.0] The initial priority of the request.
+ * @param {Boolean} [options.throttle=false] Whether to throttle and prioritize the request. If false, the request will be sent immediately. If true, the request will be throttled and sent based on priority.
+ * @param {Boolean} [options.throttleByServer=false] Whether to throttle the request by server.
+ * @param {RequestType} [options.type=RequestType.OTHER] The type of request.
+ */
+function Request(options) {
+    options = defaultValue(options, defaultValue.EMPTY_OBJECT);
+    
+    var throttleByServer = defaultValue(options.throttleByServer, false);
+    var throttle = throttleByServer || defaultValue(options.throttle, false);
+    
     /**
-     * 保存请求信息，不需要直接实例化
-     * @param options
+     * The URL to request.
+     *
+     * @type {String}
      */
-    constructor(options){
-
-        options = defaultValue(options, defaultValue.EMPTY_OBJECT);
-
-        let throttleByServer = defaultValue(options.throttleByServer, false);
-
-        let throttle = throttleByServer || defaultValue(options.throttle, false);
-
-        /**
-         * 请求的url地址
-         */
-        this.url = options.url;
-
-        /**
-         * 发出实际请求数据的函数
-         */
-        this.requestFunction = options.requestFunction;
-
-        /**
-         * 取消请求时调用的函数
-         */
-        this.cancelFunction = options.cancelFunction;
-
-        /**
-         *  更新请求优先级的函数，每帧会被调用一次
-         */
-        this.priorityFunction = options.priorityFunction;
-
-        /**
-         * 请求的初始优先级，值越低优先级越高，对于基于世界所要渲染的物体，这个值通常是该物体与相机的距离，
-         * 没有优先级函数的请求，默认值为0，如果定义了priorityFunction，则每帧都会调用该函数来更新这个值
-         */
-        this.priority = defaultValue(options.priority, 0.0);
-
-        /**
-         * 是否限制该请求的优先级，默认为false，
-         * 如果为false，则会立即发送该请求，否则会根据优先级限制请求
-         */
-        this.throttle = throttle;
-
-        /**
-         * 是否通过服务器请求限制，http1为6-8个，http2无上限
-         */
-        this.throttleByServer = throttleByServer;
-
-        /**
-         * 请求数据类型
-         */
-        this.type = defaultValue(options.type, RequestType.OTHER);
-
-        /**
-         * 用来标记当前请求的服务器的key
-         * @type {undefined}
-         */
-        this.serverKey = undefined;
-
-        /**
-         * 当前请求的状态
-         * @type {number}
-         */
-        this.state = RequestState.UNISSUED;
-
-        this.deferred = undefined;
-
-        /**
-         * 该请求是否被显式的取消
-         * @type {boolean}
-         */
-        this.cancelled = false;
-
-    }
-
-    cancel(){
-        this.cancelled = true
-    }
-
+    this.url = options.url;
+    
     /**
-     * 复制该请求实例
-     * @param result
+     * The function that makes the actual data request.
+     *
+     * @type {Request~RequestCallback}
      */
-    clone(result){
-        if(!defined(result)){
-            return new Request(this)
-        }
-
-        result.url = this.url;
-        result.requestFunction = this.requestFunction;
-        result.cancelFunction = this.cancelFunction;
-        result.priorityFunction = this.priorityFunction;
-        result.priority = this.priority;
-        result.throttle = this.throttle;
-        result.throttleByServer = this.throttleByServer;
-        result.type = this.type;
-        result.serverKey = this.serverKey;
-
-        //这里使用默认值，因为该请求还未发送
-        result.state = this.RequestState.UNISSUED;
-        result.deferred = undefined;
-        result.cancelled = false;
-
-        return result;
-    }
+    this.requestFunction = options.requestFunction;
+    
+    /**
+     * The function that is called when the request is cancelled.
+     *
+     * @type {Request~CancelCallback}
+     */
+    this.cancelFunction = options.cancelFunction;
+    
+    /**
+     * The function that is called to update the request's priority, which occurs once per frame.
+     *
+     * @type {Request~PriorityCallback}
+     */
+    this.priorityFunction = options.priorityFunction;
+    
+    /**
+     * Priority is a unit-less value where lower values represent higher priority.
+     * For world-based objects, this is usually the distance from the camera.
+     * A request that does not have a priority function defaults to a priority of 0.
+     *
+     * If priorityFunction is defined, this value is updated every frame with the result of that call.
+     *
+     * @type {Number}
+     * @default 0.0
+     */
+    this.priority = defaultValue(options.priority, 0.0);
+    
+    /**
+     * Whether to throttle and prioritize the request. If false, the request will be sent immediately. If true, the
+     * request will be throttled and sent based on priority.
+     *
+     * @type {Boolean}
+     * @readonly
+     *
+     * @default false
+     */
+    this.throttle = throttle;
+    
+    /**
+     * Whether to throttle the request by server. Browsers typically support about 6-8 parallel connections
+     * for HTTP/1 servers, and an unlimited amount of connections for HTTP/2 servers. Setting this value
+     * to <code>true</code> is preferable for requests going through HTTP/1 servers.
+     *
+     * @type {Boolean}
+     * @readonly
+     *
+     * @default false
+     */
+    this.throttleByServer = throttleByServer;
+    
+    /**
+     * Type of request.
+     *
+     * @type {RequestType}
+     * @readonly
+     *
+     * @default RequestType.OTHER
+     */
+    this.type = defaultValue(options.type, RequestType.OTHER);
+    
+    /**
+     * A key used to identify the server that a request is going to. It is derived from the url's authority and scheme.
+     *
+     * @type {String}
+     *
+     * @private
+     */
+    this.serverKey = undefined;
+    
+    /**
+     * The current state of the request.
+     *
+     * @type {RequestState}
+     * @readonly
+     */
+    this.state = RequestState.UNISSUED;
+    
+    /**
+     * The requests's deferred promise.
+     *
+     * @type {Object}
+     *
+     * @private
+     */
+    this.deferred = undefined;
+    
+    /**
+     * Whether the request was explicitly cancelled.
+     *
+     * @type {Boolean}
+     *
+     * @private
+     */
+    this.cancelled = false;
 }
+
+/**
+ * Mark the request as cancelled.
+ *
+ * @private
+ */
+Request.prototype.cancel = function() {
+    this.cancelled = true;
+};
+
+/**
+ * Duplicates a Request instance.
+ *
+ * @param {Request} [result] The object onto which to store the result.
+ *
+ * @returns {Request} The modified result parameter or a new Resource instance if one was not provided.
+ */
+Request.prototype.clone = function(result) {
+    if (!defined(result)) {
+        return new Request(this);
+    }
+    
+    result.url = this.url;
+    result.requestFunction = this.requestFunction;
+    result.cancelFunction = this.cancelFunction;
+    result.priorityFunction = this.priorityFunction;
+    result.priority = this.priority;
+    result.throttle = this.throttle;
+    result.throttleByServer = this.throttleByServer;
+    result.type = this.type;
+    result.serverKey = this.serverKey;
+    
+    // These get defaulted because the cloned request hasn't been issued
+    result.state = this.RequestState.UNISSUED;
+    result.deferred = undefined;
+    result.cancelled = false;
+    
+    return result;
+};
+
+/**
+ * The function that makes the actual data request.
+ * @callback Request~RequestCallback
+ * @returns {Promise} A promise for the requested data.
+ */
+
+/**
+ * The function that is called when the request is cancelled.
+ * @callback Request~CancelCallback
+ */
+
+/**
+ * The function that is called to update the request's priority, which occurs once per frame.
+ * @callback Request~PriorityCallback
+ * @returns {Number} The updated priority value.
+ */
+
+export default Request

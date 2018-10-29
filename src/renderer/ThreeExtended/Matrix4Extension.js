@@ -25,25 +25,28 @@ export const Matrix4Extension = {
         Check.typeOf.number('epsilon', epsilon);
         //>>includeEnd('debug');
     
-        return (left === right) ||
-            (defined(left) &&
-                defined(right) &&
-                Math.abs(left[0] - right[0]) <= epsilon &&
-                Math.abs(left[1] - right[1]) <= epsilon &&
-                Math.abs(left[2] - right[2]) <= epsilon &&
-                Math.abs(left[3] - right[3]) <= epsilon &&
-                Math.abs(left[4] - right[4]) <= epsilon &&
-                Math.abs(left[5] - right[5]) <= epsilon &&
-                Math.abs(left[6] - right[6]) <= epsilon &&
-                Math.abs(left[7] - right[7]) <= epsilon &&
-                Math.abs(left[8] - right[8]) <= epsilon &&
-                Math.abs(left[9] - right[9]) <= epsilon &&
-                Math.abs(left[10] - right[10]) <= epsilon &&
-                Math.abs(left[11] - right[11]) <= epsilon &&
-                Math.abs(left[12] - right[12]) <= epsilon &&
-                Math.abs(left[13] - right[13]) <= epsilon &&
-                Math.abs(left[14] - right[14]) <= epsilon &&
-                Math.abs(left[15] - right[15]) <= epsilon);
+        let leftElement = left.elements;
+        let rightElement = right.elements;
+        
+        return (leftElement === rightElement) ||
+            (defined(leftElement) &&
+                defined(rightElement) &&
+                Math.abs(leftElement[0] - rightElement[0]) <= epsilon &&
+                Math.abs(leftElement[1] - rightElement[1]) <= epsilon &&
+                Math.abs(leftElement[2] - rightElement[2]) <= epsilon &&
+                Math.abs(leftElement[3] - rightElement[3]) <= epsilon &&
+                Math.abs(leftElement[4] - rightElement[4]) <= epsilon &&
+                Math.abs(leftElement[5] - rightElement[5]) <= epsilon &&
+                Math.abs(leftElement[6] - rightElement[6]) <= epsilon &&
+                Math.abs(leftElement[7] - rightElement[7]) <= epsilon &&
+                Math.abs(leftElement[8] - rightElement[8]) <= epsilon &&
+                Math.abs(leftElement[9] - rightElement[9]) <= epsilon &&
+                Math.abs(leftElement[10] - rightElement[10]) <= epsilon &&
+                Math.abs(leftElement[11] - rightElement[11]) <= epsilon &&
+                Math.abs(leftElement[12] - rightElement[12]) <= epsilon &&
+                Math.abs(leftElement[13] - rightElement[13]) <= epsilon &&
+                Math.abs(leftElement[14] - rightElement[14]) <= epsilon &&
+                Math.abs(leftElement[15] - rightElement[15]) <= epsilon);
     }
 };
 

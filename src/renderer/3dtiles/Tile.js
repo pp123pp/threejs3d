@@ -22,6 +22,8 @@ import {getMagic} from "../../core/getMagic";
 
 const b3dmLoader = new B3DMLoader();
 
+let scratchCommandList = [];
+
 let scratchMatrix = new THREE.Matrix3();
 let scratchScale = new THREE.Vector3();
 let scratchHalfAxes = new THREE.Matrix3();
@@ -124,7 +126,7 @@ export default class Tile extends THREE.Object3D{
     constructor(tileset, baseResource, header, parent){
 
         super();
-
+        
         this._tileset = tileset;
 
         this._header = header;
@@ -305,9 +307,11 @@ export default class Tile extends THREE.Object3D{
         this._depth = 0;
         this._stackLength = 0;
         this._selectionDepth = 0;
+    
+        this._updatedVisibilityFrame = 0;
     }
 
-    load(){
+    /*load(){
         return new Promise((resolve, reject) => {
             b3dmLoader.load({url: this._url}).then(result=>{
 
@@ -331,7 +335,7 @@ export default class Tile extends THREE.Object3D{
             })
         })
 
-    }
+    }*/
 
     updateExpiration(){
         if (defined(this.expireDate) && this.contentReady && !this.hasEmptyContent) {
@@ -348,59 +352,130 @@ export default class Tile extends THREE.Object3D{
     }
 
     requestContent(){
-        var that = this;
-        var tileset = this._tileset;
-
+        let that = this;
+        let tileset = this._tileset;
+    
         if (this.hasEmptyContent) {
             return false;
         }
-
-        var resource = this._contentResource.clone();
-        var expired = this.contentExpired;
+    
+        let resource = this._contentResource.clone();
+        let expired = this.contentExpired;
         if (expired) {
             // Append a query parameter of the tile expiration date to prevent caching
             resource.setQueryParameters({
                 expired: this.expireDate.toString()
             });
         }
-
-        var request = new Request({
+    
+        let request = new Request({
             throttle : true,
             throttleByServer : true,
             type : RequestType.TILES3D,
             priorityFunction : createPriorityFunction(this),
             serverKey : this._serverKey
         });
-
+        
+        
         resource.request = request;
-
-        var promise = resource.fetchArrayBuffer();
-
+    
+        let promise = resource.fetchArrayBuffer();
+    
         if (!defined(promise)) {
             return false;
         }
-
-        var contentState = this._contentState;
+    
+        let contentState = this._contentState;
         this._contentState = Cesium3DTileContentState.LOADING;
         this._contentReadyToProcessPromise = when.defer();
         this._contentReadyPromise = when.defer();
-
+    
         if (expired) {
             this.expireDate = undefined;
         }
-
-        var contentFailedFunction = getContentFailedFunction(this);
-
-        Fetcher.arrayBuffer(request.url).then(function(arrayBuffer) {
+    
+        let contentFailedFunction = getContentFailedFunction(this);
+    
+        
+        /*myResource.fetchArrayBuffer().then(arrayBuffer=>{
+            console.log(arrayBuffer)
+        });*/
+    
+        promise.then(function(arrayBuffer) {
+            
+            console.log(arrayBuffer)
+            
+            //如果当前瓦片已经卸载(卸载不可用)
             if (that.isDestroyed()) {
                 // Tile is unloaded before the content finishes loading
                 contentFailedFunction();
                 return;
             }
-            var uint8Array = new Uint8Array(arrayBuffer);
-            var magic = getMagic(uint8Array);
-            var contentFactory = Cesium3DTileContentFactory[magic];
-            var content;
+            let uint8Array = new Uint8Array(arrayBuffer);
+            //获取当前模型头，是b3dm还是点云
+            let magic = getMagic(uint8Array);
+            //根据头部，选取不同的解析方法
+            let contentFactory = Cesium3DTileContentFactory[magic];
+            let content;
+        
+            // Vector and Geometry tile rendering do not support the skip LOD optimization.
+            tileset._disableSkipLevelOfDetail = tileset._disableSkipLevelOfDetail || magic === 'vctr' || magic === 'geom';
+        
+            //如果有对应的解析方法
+            if (defined(contentFactory)) {
+                content = contentFactory(tileset, that, that._contentResource, arrayBuffer, 0);
+            } else {
+                // The content may be json instead
+                content = Cesium3DTileContentFactory.json(tileset, that, that._contentResource, arrayBuffer, 0);
+                that.hasTilesetContent = true;
+            }
+        
+            //将content与tile进行绑定
+            that._content = content;
+            
+            //更新当前Tile状态，数据以获取但未解析
+            that._contentState = Cesium3DTileContentState.PROCESSING;
+            that._contentReadyToProcessPromise.resolve(content);
+        
+            //当模型加载完后
+            return content.readyPromise.then(function(content) {
+                if (that.isDestroyed()) {
+                    contentFailedFunction();
+                    return;
+                }
+                that._selectedFrame = 0;
+                that.lastStyleTime = 0;
+            
+                //更新当前tile状态，数据已解析，准备渲染至场景中
+                that._contentState = Cesium3DTileContentState.READY;
+                that._contentReadyPromise.resolve(content);
+            });
+        }).otherwise(function(error) {
+            if (request.state === RequestState.CANCELLED) {
+                // Cancelled due to low priority - try again later.
+                that._contentState = contentState;
+                --tileset.statistics.numberOfPendingRequests;
+                ++tileset.statistics.numberOfAttemptedRequests;
+                return;
+            }
+            contentFailedFunction(error);
+        });
+    
+        return true;
+    
+/*        promise.then(function(arrayBuffer) {
+            if (that.isDestroyed()) {
+                // Tile is unloaded before the content finishes loading
+                contentFailedFunction();
+                return;
+            }
+            
+            console.log(arrayBuffer)
+            
+            let uint8Array = new Uint8Array(arrayBuffer);
+            let magic = getMagic(uint8Array);
+            let contentFactory = Cesium3DTileContentFactory[magic];
+            let content;
 
             // Vector and Geometry tile rendering do not support the skip LOD optimization.
             tileset._disableSkipLevelOfDetail = tileset._disableSkipLevelOfDetail || magic === 'vctr' || magic === 'geom';
@@ -417,21 +492,23 @@ export default class Tile extends THREE.Object3D{
             that._contentState = Cesium3DTileContentState.PROCESSING;
             that._contentReadyToProcessPromise.resolve(content);
 
-            return content.readyPromise.then(function(content) {
+            let aaa = content.readyPromise.then(function(content) {
                 if (that.isDestroyed()) {
                     // Tile is unloaded before the content finishes processing
                     contentFailedFunction();
                     return;
                 }
                 //updateExpireDate(that);
-
+    
                 // Refresh style for expired content
                 that._selectedFrame = 0;
                 that.lastStyleTime = 0;
-
+    
                 that._contentState = Cesium3DTileContentState.READY;
                 that._contentReadyPromise.resolve(content);
-            });
+            })
+            
+            return aaa;
         }).otherwise(function(error) {
             if (request.state === RequestState.CANCELLED) {
                 // Cancelled due to low priority - try again later.
@@ -441,7 +518,7 @@ export default class Tile extends THREE.Object3D{
                 return;
             }
             contentFailedFunction(error);
-        });
+        });*/
 
         return true;
     }
@@ -452,14 +529,14 @@ export default class Tile extends THREE.Object3D{
 
         let tileset = this._tileset;
         let clippingPlanes = tileset.clippingPlanes;
-        if (defined(clippingPlanes) && clippingPlanes.enabled) {
+/*        if (defined(clippingPlanes) && clippingPlanes.enabled) {
             let tileTransform = tileset.root.computedTransform;
             let intersection = clippingPlanes.computeIntersectionWithBoundingVolume(boundingVolume, tileTransform);
             this._isClipped = intersection !== Intersect.INSIDE;
             if (intersection === Intersect.OUTSIDE) {
                 return CullingVolume.MASK_OUTSIDE;
             }
-        }
+        }*/
 
         return cullingVolume.computeVisibilityWithPlaneMask(boundingVolume, parentVisibilityPlaneMask);
     }
@@ -512,7 +589,12 @@ export default class Tile extends THREE.Object3D{
         let boundingVolume = getBoundingVolume(this, frameState);
         return boundingVolume.distanceToCamera(frameState);
     }
-
+    
+    /**
+     * 计算包围体中心与相机之间的距离
+     * @param frameState
+     * @return {number}
+     */
     distanceToTileCenter(frameState){
         let tileBoundingVolume = getBoundingVolume(this, frameState);
         let boundingVolume = tileBoundingVolume.boundingVolume; // Gets the underlying OrientedBoundingBox or BoundingSphere
@@ -527,7 +609,38 @@ export default class Tile extends THREE.Object3D{
         let viewerRequestVolume = this._viewerRequestVolume;
         return !defined(viewerRequestVolume) || (viewerRequestVolume.distanceToCamera(frameState) === 0.0);
     }
-
+    
+    unloadContent(){
+        if (this.hasEmptyContent || this.hasTilesetContent) {
+            return;
+        }
+    
+        this._content = this._content && this._content.destroy();
+        this._contentState = Cesium3DTileContentState.UNLOADED;
+        this._contentReadyToProcessPromise = undefined;
+        this._contentReadyPromise = undefined;
+    
+        this.lastStyleTime = 0;
+        this.clippingPlanesDirty = (this._clippingPlanesState === 0);
+        this._clippingPlanesState = 0;
+    
+        this._debugColorizeTiles = false;
+    
+        this._debugBoundingVolume = this._debugBoundingVolume && this._debugBoundingVolume.destroy();
+        this._debugContentBoundingVolume = this._debugContentBoundingVolume && this._debugContentBoundingVolume.destroy();
+        this._debugViewerRequestVolume = this._debugViewerRequestVolume && this._debugViewerRequestVolume.destroy();
+    }
+    
+    process(tileset, frameState){
+        let savedCommandList = frameState.commandList;
+        frameState.commandList = scratchCommandList;
+    
+        this._content.update(tileset, frameState);
+    
+        scratchCommandList.length = 0;
+        frameState.commandList = savedCommandList;
+    }
+    
     isDestroyed(){
         return false;
     }
@@ -566,6 +679,10 @@ export default class Tile extends THREE.Object3D{
         if (defined(this._contentReadyPromise)) {
             return this._contentReadyPromise.promise;
         }
+    }
+    
+    get content(){
+        return this._content;
     }
 }
 

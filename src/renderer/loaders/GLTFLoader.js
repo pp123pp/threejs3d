@@ -30,7 +30,7 @@ let GLTFLoader = ( function () {
 
             loader.setResponseType( 'arraybuffer' );
 
-            loader.load( url, function ( data ) {
+            loader( url, function ( data ) {
 
                 scope.parse( data, onLoad, path );
 

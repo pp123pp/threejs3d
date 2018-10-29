@@ -294,6 +294,10 @@ export default class Batched3DModel3DTileContent {
 
         initialize(this, arrayBuffer, byteOffset);
     }
+    
+    updateFixedFrame(){
+    
+    }
 
     get readyPromise(){
         return this._model.readyPromise

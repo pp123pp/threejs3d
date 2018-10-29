@@ -19,6 +19,8 @@ import {combine} from "./combine";
 import {freezeObject} from "./freezeObject";
 import {getExtensionFromUri} from "./getExtensionFromUri";
 import {TrustedServers} from "./TrustedServers";
+import isBlobUri from "./isBlobUri";
+import {isCrossOriginUrl} from "./isCrossOriginUrl";
 
 var xhrBlobSupported = (function() {
     try {

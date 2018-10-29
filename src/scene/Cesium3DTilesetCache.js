@@ -26,7 +26,7 @@ export default class Cesium3DTilesetCache {
         if (!defined(tile.cacheNode)) {
             tile.cacheNode = this._list.add(tile);
         }
-    };
+    }
 
     unloadTile (tileset, tile, unloadCallback) {
         let node = tile.cacheNode;

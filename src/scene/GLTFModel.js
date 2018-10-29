@@ -4,6 +4,14 @@ import {Check} from "../core/Check";
 import B3DMLoader from "../renderer/loaders/B3DMLoader";
 import {defined} from "../core/defined";
 
+//记录当前模型所处状态
+const ModelState = {
+    NEEDS_LOAD : 0,
+    LOADING : 1,
+    LOADED : 2,  // Renderable, but textures can still be pending when incrementallyLoadTextures is true.
+    FAILED : 3
+};
+
 export default class GLFTModel extends THREE.Object3D{
     constructor() {
         super();
@@ -11,6 +19,8 @@ export default class GLFTModel extends THREE.Object3D{
         this._readyPromise = when.defer();
 
         this.loader = new B3DMLoader();
+        
+        this._state = ModelState.NEEDS_LOAD;
 
     }
 
@@ -59,9 +69,11 @@ export default class GLFTModel extends THREE.Object3D{
             });
 
             let object = result.gltf.scene;
-            model._readyPromise.resolve(object);
-
+    
             model.add(object)
+            model._readyPromise.resolve(model);
+
+            
         })
 
         return model
