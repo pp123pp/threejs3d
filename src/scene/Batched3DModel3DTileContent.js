@@ -4,6 +4,8 @@ import {RuntimeError} from "../core/RuntimeError";
 import {getStringFromTypedArray} from "../core/getStringFromTypedArray";
 import Cesium3DTileFeatureTable from "./Cesium3DTileFeatureTable";
 import B3DMLoader from "../renderer/loaders/B3DMLoader";
+import {GLTFLoader} from "../renderer/loaders/GLTFLoader";
+import GLFTModel from "./GLTFModel";
 
 
 var sizeOfUint32 = Uint32Array.BYTES_PER_ELEMENT;
@@ -25,13 +27,13 @@ function getVertexShaderCallback(content) {
     return function(vs, programId) {
         var batchTable = content._batchTable;
         var handleTranslucent = !defined(content._tileset.classificationType);
-        
+
         var gltf = content._model.gltf;
         if (defined(gltf)) {
             content._batchIdAttributeName = getBatchIdAttributeName(gltf);
             content._diffuseAttributeOrUniformName[programId] = ModelUtility.getDiffuseAttributeOrUniform(gltf, programId);
         }
-        
+
         var callback = batchTable.getVertexShaderCallback(handleTranslucent, content._batchIdAttributeName, content._diffuseAttributeOrUniformName[programId]);
         return defined(callback) ? callback(vs) : vs;
     };
@@ -41,7 +43,7 @@ function getFragmentShaderCallback(content) {
     return function(fs, programId) {
         var batchTable = content._batchTable;
         var handleTranslucent = !defined(content._tileset.classificationType);
-        
+
         var gltf = content._model.gltf;
         if (defined(gltf)) {
             content._diffuseAttributeOrUniformName[programId] = ModelUtility.getDiffuseAttributeOrUniform(gltf, programId);
@@ -75,41 +77,45 @@ function initialize(content, arrayBuffer, byteOffset) {
     var tileset = content._tileset;
     var tile = content._tile;
     var resource = content._resource;
-    
-    b3dmLoader.parse(arrayBuffer, tileset._gltfUpAxis).then(result=>{
+
+    /*b3dmLoader.parse(arrayBuffer, tileset._gltfUpAxis).then(result=>{
         console.log(result)
-    })
-    
+    })*/
+    //content._model = new GLTFModel
+
+    content._model = GLFTModel.fromArrayBuffer(arrayBuffer)
+
+
 /*    var byteStart = defaultValue(byteOffset, 0);
         byteOffset = byteStart;
-    
+
         var uint8Array = new Uint8Array(arrayBuffer);
         var view = new DataView(arrayBuffer);
         byteOffset += sizeOfUint32;  // Skip magic
-    
+
         var version = view.getUint32(byteOffset, true);
         if (version !== 1) {
             throw new RuntimeError('Only Batched 3D Model version 1 is supported.  Version ' + version + ' is not.');
         }
         byteOffset += sizeOfUint32;
-    
+
         var byteLength = view.getUint32(byteOffset, true);
         byteOffset += sizeOfUint32;
-    
+
         var featureTableJsonByteLength = view.getUint32(byteOffset, true);
         byteOffset += sizeOfUint32;
-    
+
         var featureTableBinaryByteLength = view.getUint32(byteOffset, true);
         byteOffset += sizeOfUint32;
-    
+
         var batchTableJsonByteLength = view.getUint32(byteOffset, true);
         byteOffset += sizeOfUint32;
-    
+
         var batchTableBinaryByteLength = view.getUint32(byteOffset, true);
         byteOffset += sizeOfUint32;
-    
+
         var batchLength;
-    
+
         // Legacy header #1: [batchLength] [batchTableByteLength]
         // Legacy header #2: [batchTableJsonByteLength] [batchTableBinaryByteLength] [batchLength]
         // Current header: [featureTableJsonByteLength] [featureTableBinaryByteLength] [batchTableJsonByteLength] [batchTableBinaryByteLength]
@@ -135,7 +141,7 @@ function initialize(content, arrayBuffer, byteOffset) {
             featureTableBinaryByteLength = 0;
             Batched3DModel3DTileContent._deprecationWarning('b3dm-legacy-header', 'This b3dm header is using the legacy format [batchTableJsonByteLength] [batchTableBinaryByteLength] [batchLength]. The new format is [featureTableJsonByteLength] [featureTableBinaryByteLength] [batchTableJsonByteLength] [batchTableBinaryByteLength] from https://github.com/AnalyticalGraphicsInc/3d-tiles/tree/master/specification/TileFormats/Batched3DModel.');
         }
-    
+
         var featureTableJson;
         if (featureTableJsonByteLength === 0) {
             featureTableJson = {
@@ -146,15 +152,15 @@ function initialize(content, arrayBuffer, byteOffset) {
             featureTableJson = JSON.parse(featureTableString);
             byteOffset += featureTableJsonByteLength;
         }
-    
+
         var featureTableBinary = new Uint8Array(arrayBuffer, byteOffset, featureTableBinaryByteLength);
         byteOffset += featureTableBinaryByteLength;
-    
+
         var featureTable = new Cesium3DTileFeatureTable(featureTableJson, featureTableBinary);
-    
+
         batchLength = featureTable.getGlobalProperty('BATCH_LENGTH');
         featureTable.featuresLength = batchLength;
-    
+
         var batchTableJson;
         var batchTableBinary;
         if (batchTableJsonByteLength > 0) {
@@ -166,7 +172,7 @@ function initialize(content, arrayBuffer, byteOffset) {
             var batchTableString = getStringFromTypedArray(uint8Array, byteOffset, batchTableJsonByteLength);
             batchTableJson = JSON.parse(batchTableString);
             byteOffset += batchTableJsonByteLength;
-        
+
             if (batchTableBinaryByteLength > 0) {
                 // Has a batch table binary
                 batchTableBinary = new Uint8Array(arrayBuffer, byteOffset, batchTableBinaryByteLength);
@@ -175,20 +181,20 @@ function initialize(content, arrayBuffer, byteOffset) {
                 byteOffset += batchTableBinaryByteLength;
             }
         }
-    
+
         var colorChangedCallback;
         if (defined(tileset.classificationType)) {
             colorChangedCallback = createColorChangedCallback(content);
         }
-    
+
         var batchTable = new Cesium3DTileBatchTable(content, batchLength, batchTableJson, batchTableBinary, colorChangedCallback);
         content._batchTable = batchTable;
-    
+
         var gltfByteLength = byteStart + byteLength - byteOffset;
         if (gltfByteLength === 0) {
             throw new RuntimeError('glTF byte length must be greater than 0.');
         }
-    
+
         var gltfView;
         if (byteOffset % 4 === 0) {
             gltfView = new Uint8Array(arrayBuffer, byteOffset, gltfByteLength);
@@ -197,20 +203,20 @@ function initialize(content, arrayBuffer, byteOffset) {
             Batched3DModel3DTileContent._deprecationWarning('b3dm-glb-unaligned', 'The embedded glb is not aligned to a 4-byte boundary.');
             gltfView = new Uint8Array(uint8Array.subarray(byteOffset, byteOffset + gltfByteLength));
         }
-    
+
         var pickObject = {
             content : content,
             primitive : tileset
         };
-    
+
         content._rtcCenterTransform = Matrix4.clone(Matrix4.IDENTITY);
         var rtcCenter = featureTable.getGlobalProperty('RTC_CENTER', ComponentDatatype.FLOAT, 3);
         if (defined(rtcCenter)) {
             content._rtcCenterTransform = Matrix4.fromTranslation(Cartesian3.fromArray(rtcCenter), content._rtcCenterTransform);
         }
-    
+
         content._contentModelMatrix = Matrix4.multiply(tile.computedTransform, content._rtcCenterTransform, new Matrix4());
-    
+
         if (!defined(tileset.classificationType)) {
             // PERFORMANCE_IDEA: patch the shader on demand, e.g., the first time show/color changes.
             // The pick shader still needs to be patched.
@@ -276,16 +282,20 @@ export default class Batched3DModel3DTileContent {
         this._model = undefined;
         this._batchTable = undefined;
         this._features = undefined;
-    
+
         // Populate from gltf when available
         this._batchIdAttributeName = undefined;
         this._diffuseAttributeOrUniformName = {};
-    
+
         this._rtcCenterTransform = undefined;
         this._contentModelMatrix = undefined;
-    
+
         this.featurePropertiesDirty = false;
-    
+
         initialize(this, arrayBuffer, byteOffset);
+    }
+
+    get readyPromise(){
+        return this._model.readyPromise
     }
 }

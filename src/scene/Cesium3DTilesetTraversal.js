@@ -243,11 +243,11 @@ function Cesium3DTilesetTraversal() {
                 error -= dynamicError;
             }
         }*/
-    
+
         let distance = Math.max(tile._distanceToCamera, MathExtension.EPSILON7);
         let sseDenominator = camera.sseDenominator; //* Math.sqrt(camera.containerWidth * camera.containerWidth + camera.containerHeight * camera.containerHeight);
         error = (geometricError * height) / (distance * sseDenominator);
-    
+
         if (tileset.dynamicScreenSpaceError) {
             let density = tileset._dynamicScreenSpaceErrorComputedDensity;
             let factor = tileset.dynamicScreenSpaceErrorFactor;
@@ -271,10 +271,10 @@ function Cesium3DTilesetTraversal() {
 
         tile.updateTransform(parentTransform);
         tile._distanceToCamera = tile.distanceToTile(frameState);
-        
+
         //console.log(tile._distanceToCamera)
-        
-        
+
+
         tile._centerZDepth = tile.distanceToTileCenter(frameState);
         tile._screenSpaceError = getScreenSpaceError(tileset, tile.geometricError, tile, frameState);
         tile._visibilityPlaneMask = tile.visibility(frameState, parentVisibilityPlaneMask); // Use parent's plane mask to speed up visibility test
@@ -308,18 +308,18 @@ function Cesium3DTilesetTraversal() {
 
     function updateTileVisibility(tileset, tile, frameState) {
         updateVisibility(tileset, tile, frameState);
-    
+
         if (!isVisible(tile)) {
             return;
         }
-    
+
         // Use parent's geometric error with child's box to see if the tile already meet the SSE
         let parentTile = tile.parentTile;
         if (defined(parentTile) && (parentTile.refine === Cesium3DTileRefine.ADD) && getScreenSpaceError(tileset, parentTile.geometricError, tile, frameState) <= tileset._maximumScreenSpaceError) {
             tile._visible = false;
             return;
         }
-    
+
         // Optimization - if none of the tile's children are visible then this tile isn't visible
         let replace = tile.refine === Cesium3DTileRefine.REPLACE;
         let useOptimization = tile._optimChildrenWithinParent === Cesium3DTileOptimizationHint.USE_OPTIMIZATION;
@@ -470,7 +470,7 @@ function Cesium3DTilesetTraversal() {
 
         while (stack.length > 0) {
             traversal.stackMaximumLength = Math.max(traversal.stackMaximumLength, stack.length);
-    
+
             let tile = stack.pop();
             let baseTraversal = inBaseTraversal(tileset, tile, baseScreenSpaceError);
             let add = tile.refine === Cesium3DTileRefine.ADD;
@@ -481,16 +481,16 @@ function Cesium3DTilesetTraversal() {
             let parentRefines = !defined(parent) || parent._refines;
             let traverse = (childrenLength > 0) && (tile._screenSpaceError > maximumScreenSpaceError);
             let refines = false;
-    
+
             if (tile.hasTilesetContent && tile.contentExpired) {
                 // Don't traverse expired subtree because it will be destroyed
                 traverse = false;
             }
-    
+
             if (traverse) {
                 refines = updateAndPushChildren(tileset, tile, stack, frameState) && parentRefines;
             }
-    
+
             if (hasEmptyContent(tile)) {
                 // Add empty tile just to show its debug bounding volume
                 // If the tile has tileset content load the external tileset
@@ -519,12 +519,12 @@ function Cesium3DTilesetTraversal() {
                     }
                 }
             }
-    
+
             visitTile(tileset, tile, frameState);
             touchTile(tileset, tile, frameState);
             tile._refines = refines;
             tile._updatedVisibilityFrame = 0; // Reset so visibility is checked during the next pass
-    
+
         }
     }
 
