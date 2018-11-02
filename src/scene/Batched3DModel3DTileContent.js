@@ -6,7 +6,7 @@ import Cesium3DTileFeatureTable from "./Cesium3DTileFeatureTable";
 import B3DMLoader from "../renderer/loaders/B3DMLoader";
 import {GLTFLoader} from "../renderer/loaders/GLTFLoader";
 import GLFTModel from "./GLTFModel";
-
+import * as THREE from 'three'
 
 var sizeOfUint32 = Uint32Array.BYTES_PER_ELEMENT;
 
@@ -83,8 +83,12 @@ function initialize(content, arrayBuffer, byteOffset) {
     })*/
     //content._model = new GLTFModel
 
-    content._model = GLFTModel.fromArrayBuffer(arrayBuffer)
-
+    content._model = GLFTModel.fromArrayBuffer(arrayBuffer);
+    
+    tile.add(content._model)
+    
+    //console.log(tile.getWorldPosition(new THREE.Vector3()))
+    
 
 /*    var byteStart = defaultValue(byteOffset, 0);
         byteOffset = byteStart;

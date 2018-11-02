@@ -101,6 +101,11 @@ function requestTiles(tileset) {
     // This makes it less likely that requests will be cancelled after being issued.
     var requestedTiles = tileset._requestedTiles;
     var length = requestedTiles.length;
+    
+    if(length>0){
+        console.log(requestedTiles)
+    }
+    
     requestedTiles.sort(sortRequestByPriority);
     for (var i = 0; i < length; ++i) {
         requestContent(tileset, requestedTiles[i]);
@@ -987,6 +992,9 @@ export default class Tileset extends THREE.Object3D{
 
         if(defined(parentTile)){
             parentTile.childrenTile.push(rootTile);
+            
+            parentTile.add(rootTile);
+            
             rootTile._depth = parentTile._depth + 1;
         }
 
@@ -1005,6 +1013,9 @@ export default class Tileset extends THREE.Object3D{
                     let childHeader = children[i];
                     let childTile = new Tile(this, resource, childHeader, tile);
                     tile.childrenTile.push(childTile);
+                    
+                    tile.add(childTile)
+                    
                     childTile._depth = tile._depth + 1;
                     stack.push(childTile);
                 }
@@ -1014,6 +1025,9 @@ export default class Tileset extends THREE.Object3D{
                 Cesium3DTileOptimizations.checkChildrenWithinParent(tile);
             }
         }
+        
+        this.add(rootTile)
+        
         return rootTile
 
     }
@@ -1082,6 +1096,7 @@ export default class Tileset extends THREE.Object3D{
             processTiles(this, frameState);
         }
     
+        //updateTiles(this, frameState);
         /*updateTiles(this, frameState);
     
         if (outOfCore) {

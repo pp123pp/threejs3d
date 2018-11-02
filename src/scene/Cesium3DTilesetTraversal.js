@@ -258,15 +258,14 @@ function Cesium3DTilesetTraversal() {
         return error;
     }
 
+    //更新tile世界矩阵，以及计算相关参数，以判断当前tile的可见性
     function updateVisibility(tileset, tile, frameState) {
         if (tile._updatedVisibilityFrame === frameState.frameNumber) {
             // Return early if visibility has already been checked during the traversal.
             // The visibility may have already been checked if the cullWithChildrenBounds optimization is used.
-            return;
+            //return;
         }
         
-        //console.log("aaa")
-
         //获取父Tile
         let parentTile = tile.parentTile;
         //获取父Tile的仿射矩阵，如果没有则为根Tile的仿射矩阵
@@ -283,7 +282,7 @@ function Cesium3DTilesetTraversal() {
         //计算包围体中心与相机之间的距离
         tile._centerZDepth = tile.distanceToTileCenter(frameState);
         
-        //获取当前屏幕空间误差
+        //获取当前屏幕空间误差 m
         tile._screenSpaceError = getScreenSpaceError(tileset, tile.geometricError, tile, frameState);
         
         tile._visibilityPlaneMask = tile.visibility(frameState, parentVisibilityPlaneMask); // Use parent's plane mask to speed up visibility test
@@ -308,6 +307,17 @@ function Cesium3DTilesetTraversal() {
         return anyVisible;
     }
 
+    function meetsScreenSpaceErrorEarly(tileset, tile, frameState) {
+        let parent = tile.parent;
+        if (!defined(parent) || parent.hasTilesetContent || (parent.refine !== Cesium3DTileRefine.ADD)) {
+            return false;
+        }
+        
+        // Use parent's geometric error with child's box to see if the tile already meet the SSE
+        let sse = getScreenSpaceError(tileset, parent.geometricError, tile, frameState);
+        return sse <= tileset._maximumScreenSpaceError;
+    }
+
     function updateTileVisibility(tileset, tile, frameState) {
         updateVisibility(tileset, tile, frameState);
 
@@ -315,22 +325,17 @@ function Cesium3DTilesetTraversal() {
         if (!isVisible(tile)) {
             return;
         }
-
-        // Use parent's geometric error with child's box to see if the tile already meet the SSE
-        //获取当前Tile的父Tile
-        let parentTile = tile.parentTile;
-        if (defined(parentTile) && (parentTile.refine === Cesium3DTileRefine.ADD) && getScreenSpaceError(tileset, parentTile.geometricError, tile, frameState) <= tileset._maximumScreenSpaceError) {
+        
+        let hasChildren = tile.children.length > 0;
+    
+        if (meetsScreenSpaceErrorEarly(tileset, tile, frameState)) {
             tile._visible = false;
             return;
         }
-
+    
         // Optimization - if none of the tile's children are visible then this tile isn't visible
-        //当前瓦片的替换类型是否为REPLACE
         let replace = tile.refine === Cesium3DTileRefine.REPLACE;
-        
         let useOptimization = tile._optimChildrenWithinParent === Cesium3DTileOptimizationHint.USE_OPTIMIZATION;
-        
-        let hasChildren = tile.childrenTile.length > 0;
         if (replace && useOptimization && hasChildren) {
             if (!anyChildrenVisible(tileset, tile, frameState)) {
                 ++tileset._statistics.numberOfTilesCulledWithChildrenUnion;
@@ -338,6 +343,8 @@ function Cesium3DTilesetTraversal() {
                 return;
             }
         }
+        
+        
     }
 
     function updateTile(tileset, tile, frameState) {
@@ -497,33 +504,21 @@ function Cesium3DTilesetTraversal() {
             if (traverse) {
                 refines = updateAndPushChildren(tileset, tile, stack, frameState) && parentRefines;
             }
-
-            if (hasEmptyContent(tile)) {
-                // Add empty tile just to show its debug bounding volume
-                // If the tile has tileset content load the external tileset
-                addEmptyTile(tileset, tile, frameState);
-                loadTile(tileset, tile, frameState);
-            } else if (add) {
-                // Additive tiles are always loaded and selected
-                selectDesiredTile(tileset, tile, frameState);
-                loadTile(tileset, tile, frameState);
-            } else if (replace) {
+    
+            var stoppedRefining = !refines && parentRefines;
+    
+            if (replace) {
                 if (baseTraversal) {
                     // Always load tiles in the base traversal
                     // Select tiles that can't refine further
                     loadTile(tileset, tile, frameState);
-                    if (!refines && parentRefines) {
+                    if (stoppedRefining) {
                         selectDesiredTile(tileset, tile, frameState);
                     }
-                } else {
-                    // Load tiles that are not skipped or can't refine further. In practice roughly half the tiles stay unloaded.
-                    // Select tiles that can't refine further. If the tile doesn't have loaded content it will try to select an ancestor with loaded content instead.
-                    if (!refines) { // eslint-disable-line
-                        selectDesiredTile(tileset, tile, frameState);
-                        loadTile(tileset, tile, frameState);
-                    } else if (reachedSkippingThreshold(tileset, tile)) {
-                        loadTile(tileset, tile, frameState);
-                    }
+                } else if (stoppedRefining) {
+                    // In skip traversal, load and select tiles that can't refine further
+                    selectDesiredTile(tileset, tile, frameState);
+                    loadTile(tileset, tile, frameState);
                 }
             }
 

@@ -403,7 +403,7 @@ export default class Tile extends THREE.Object3D{
     
         promise.then(function(arrayBuffer) {
             
-            console.log(arrayBuffer)
+            //console.log(arrayBuffer)
             
             //如果当前瓦片已经卸载(卸载不可用)
             if (that.isDestroyed()) {

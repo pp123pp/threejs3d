@@ -10,15 +10,18 @@ const scene = viewer.scene;
 const camera = viewer.camera;
 
 let geometry = new E3D.THREE.BoxGeometry( 1, 1, 1 );
-let material = new E3D.THREE.MeshBasicMaterial( { color: 0x00ff00 } );
+let material = new E3D.THREE.MeshBasicMaterial( { color: 0x00ff00, transparent: true, opacity: 0.2 } );
 let cube = new E3D.THREE.Mesh( geometry, material );
 scene.add( cube );
 
-console.log(cube)
+//console.log(cube)
 
-camera.position.set(1215676.2153780775, -4739055.029838431, 4084147.7201135154);
+camera.position.set(1215107.7612304366, -4736682.902037748, 4088147.7201135154);
 
 //camera.position.set(0, 0, 10);
+
+//camera.position.set(1216007.2404122227, -4736883.208557791, 4104418.1937482036);
+
 
 let ambientLight = new E3D.THREE.AmbientLight( 0x404040 );
 let directionalLight1 = new E3D.THREE.DirectionalLight( 0xC0C090 );
@@ -41,17 +44,20 @@ let tileset = E3D.Tileset.fromJson({
     url: jsonRootUrl
 })
 
-console.log(tileset)
+//console.log(tileset)
 
 scene.add(tileset)
 
 scene.mainLoopCollection.add(tileset)
 
+scene.control.addIntersectObject(tileset);
+
 tileset.readyPromise.then(object=>{
-    console.log(object)
+    //console.log(object)
 })
 
 
+/*
 let loader = new E3D.B3DMLoader().load({
     url: "https://raw.githubusercontent.com/AnalyticalGraphicsInc/3d-tiles-samples/master/tilesets/TilesetWithDiscreteLOD/dragon_medium.b3dm"
 }).then(result=>{
@@ -67,10 +73,10 @@ let loader = new E3D.B3DMLoader().load({
     
     let object = result.gltf.scene;
     
-    scene.add(object);
+    //scene.add(object);
     scene.control.addIntersectObject(object);
     
-    object.position.set(1215676.2153780775, -4739055.029838431, 4084137.095098698)
+    object.position.set(1215676.2153780775, -4739055.029838431, 4084137.095098698);
     
     let box = new THREE.Box3();
     
@@ -82,10 +88,13 @@ let loader = new E3D.B3DMLoader().load({
     
     box.getBoundingSphere(sphere);
     
-    console.log(sphere)
+    //console.log(sphere)
     
     
 })
+*/
+
+console.log(scene)
 
 /*tileset.readyPromise.then((value => {
     console.log(value)
@@ -93,7 +102,13 @@ let loader = new E3D.B3DMLoader().load({
 
 //console.log(tileset.readyPromise)
 
-
+document.querySelector("#move").onclick = ()=>{
+    console.log("aaa")
+    //camera.position.set(0, 0, 10);
+    
+    console.log(camera.position)
+    
+}
 
 
 

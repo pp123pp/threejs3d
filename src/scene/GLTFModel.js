@@ -70,9 +70,15 @@ export default class GLFTModel extends THREE.Object3D{
 
             let object = result.gltf.scene;
     
-            model.add(object)
+            model.add(object);
+    
+            model.boundingBox = new THREE.Box3().expandByObject(object)
+            
+            let sphere = new THREE.Sphere();
+    
+            model.boundingBox.getBoundingSphere(sphere);
+            
             model._readyPromise.resolve(model);
-
             
         })
 
