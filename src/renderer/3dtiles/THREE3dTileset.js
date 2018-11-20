@@ -102,8 +102,8 @@ export default class THREE3dTileset extends THREE.Object3D{
             node.baseUrl = baseUrl;
             counter ++;
 
-            if(defined(node.children)){
-                for (const child of node.children) {
+            if(defined(node.childrenTile)){
+                for (const child of node.childrenTile) {
                     recurse(child, baseUrl);
                 }
             }

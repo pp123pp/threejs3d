@@ -125,6 +125,9 @@ function Cesium3DTilesetTraversal() {
             }
             tile._selectedFrame = frameState.frameNumber;
             tileset._selectedTiles.push(tile);
+
+            //console.log(tile._depth)
+
         }
     }
 
@@ -134,7 +137,7 @@ function Cesium3DTilesetTraversal() {
         while (stack.length > 0) {
             descendantTraversal.stackMaximumLength = Math.max(descendantTraversal.stackMaximumLength, stack.length);
             let tile = stack.pop();
-            let children = tile.children;
+            let children = tile.childrenTile;
             let childrenLength = children.length;
             for (let i = 0; i < childrenLength; ++i) {
                 let child = children[i];
@@ -540,7 +543,7 @@ function Cesium3DTilesetTraversal() {
             emptyTraversal.stackMaximumLength = Math.max(emptyTraversal.stackMaximumLength, stack.length);
 
             let tile = stack.pop();
-            let children = tile.children;
+            let children = tile.childrenTile;
             let childrenLength = children.length;
 
             // Only traverse if the tile is empty - traversal stop at descendants with content
@@ -621,7 +624,7 @@ function Cesium3DTilesetTraversal() {
 
             let add = tile.refine === Cesium3DTileRefine.ADD;
             let shouldSelect = tile._shouldSelect;
-            let children = tile.children;
+            let children = tile.childrenTile;
             let childrenLength = children.length;
             let traverse = canTraverse(tileset, tile);
 

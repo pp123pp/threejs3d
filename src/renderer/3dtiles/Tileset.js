@@ -102,10 +102,6 @@ function requestTiles(tileset) {
     var requestedTiles = tileset._requestedTiles;
     var length = requestedTiles.length;
     
-    if(length>0){
-        console.log(requestedTiles)
-    }
-    
     requestedTiles.sort(sortRequestByPriority);
     for (var i = 0; i < length; ++i) {
         requestContent(tileset, requestedTiles[i]);
